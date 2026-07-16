@@ -7,6 +7,10 @@ schedule + Neon Postgres).
 
 **Pipeline:** poll ATS boards → normalize → dedup via DB → store → score → Telegram alert.
 
+There's also a **web dashboard** (Phase 2) to browse the full job history and manage application
+status — a React app + serverless API on Vercel, reading the same Neon database. See
+[Dashboard](#dashboard-phase-2).
+
 ## How it runs
 
 There is no server. A GitHub Actions scheduled workflow runs `npm run poll` — a stateless
@@ -54,6 +58,40 @@ boards and sends no alerts. Alerts fire only for jobs that appear after that.
 - Scheduled Actions are best-effort: runs can start a few minutes late.
 - GitHub disables scheduled workflows after ~60 days without repo activity — an occasional
   commit keeps it alive.
+
+## Dashboard (Phase 2)
+
+A web dashboard to browse every stored job and manage status (Applied / Interested / Rejected /
+Interview). It's a React + Vite SPA (`web/`) plus Vercel serverless functions (`api/`) that read
+and update the same Neon DB the poller writes to. Access is gated by a shared password.
+
+- `GET /api/jobs` — list with filters (`status`, `minScore`, `search`, `sort`, `order`, paging).
+- `PATCH /api/jobs/:id` — update a job's status.
+- Both require `Authorization: Bearer <DASHBOARD_PASSWORD>`.
+
+### Run the dashboard locally
+
+Two terminals (Postgres from `docker compose up -d` should be running, migrations applied):
+
+```bash
+npm run dev:api                 # serves the API functions on http://localhost:3000
+cd web && npm install && npm run dev   # Vite dev server; it proxies /api to :3000
+```
+
+Open the Vite URL, sign in with the `DASHBOARD_PASSWORD` from your `.env` (`localdev` by default).
+
+### Deploy to Vercel (free)
+
+1. Create a project at [vercel.com](https://vercel.com) and import this GitHub repo. Vercel reads
+   `vercel.json` — it builds the `web/` app and serves the `api/` functions automatically.
+2. In the Vercel project → Settings → Environment Variables, add:
+   - `DATABASE_URL` — the same Neon connection string used by the poller.
+   - `DASHBOARD_PASSWORD` — a strong password (this is what you log in with).
+3. Deploy. The dashboard is your Vercel URL; the API lives under `/api` on the same domain (so no
+   CORS setup needed).
+
+> The poller (GitHub Actions) and the dashboard (Vercel) are independent deployments that share
+> one Neon database. Neither needs the other running.
 
 ## Project docs
 

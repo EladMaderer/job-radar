@@ -118,6 +118,30 @@ language so it doubles as an interview script.
 - **Trade-off:** One more thing to remember locally. Production (Neon) is unaffected — it uses a
   full connection string.
 
+## Phase 2 dashboard: Vercel + shared-password auth, same Neon DB
+
+- **Decision:** The dashboard is a React+Vite SPA (`web/`) plus Vercel serverless functions
+  (`api/`) that reuse the existing `pg` repository layer and read/write the same Neon DB the
+  poller uses. Access is one shared password sent as a Bearer token (stored in localStorage).
+- **Why:** Vercel's free tier hosts the static app and Node functions together with no CORS
+  setup; Node functions can import our `src/repositories` directly, so no duplicated DB code.
+  A single password is enough for a one-person tool and avoids a third-party auth dependency.
+  Splitting a DB-only config (`config/db.ts`) means the API needs just `DATABASE_URL`, not the
+  poller's Telegram vars.
+- **Trade-off:** A bearer token in localStorage is vulnerable to XSS (acceptable for a private,
+  single-user dashboard with no third-party scripts). No per-user accounts or audit — out of
+  scope. Vercel and GitHub Actions are two independent deployments sharing one database.
+
+## Local dev server for Vercel functions
+
+- **Decision:** `scripts/devApi.ts` (`npm run dev:api`) mounts the real Vercel handlers on a
+  plain Node HTTP server at :3000; Vite proxies `/api` to it.
+- **Why:** Running Vercel functions locally otherwise needs the Vercel CLI + login. This keeps
+  local dev fully offline and dependency-light — the same handler code runs locally and in prod.
+- **Trade-off:** The tiny adapter re-implements the sliver of the Vercel req/res contract we use
+  (`query`, `body`, `status()`, `json()`). If a handler starts using more of the Vercel API,
+  the adapter must grow to match.
+
 ## ESM + NodeNext modules
 
 - **Decision:** `"type": "module"`, TypeScript `module: NodeNext`, relative imports carry `.js`
