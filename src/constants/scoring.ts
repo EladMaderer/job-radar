@@ -56,7 +56,12 @@ export const FRONTEND_ONLY_KEYWORDS = [
   'nextjs',
 ];
 
-/** Backend/full-stack signal — combined with frontend-specific signal => the sweet spot bonus. */
+/**
+ * Backend/full-stack signal — combined with frontend-specific signal => the sweet spot bonus.
+ * NOTE: `api` is deliberately excluded — nearly every pure-frontend description says "consume
+ * REST APIs", which would make the sweet spot fire for everything and destroy the ranking it
+ * exists to make. Only real server-side signals belong here.
+ */
 export const BACKEND_SIGNAL_KEYWORDS = [
   'node',
   'node.js',
@@ -67,19 +72,23 @@ export const BACKEND_SIGNAL_KEYWORDS = [
   'full stack',
   'full-stack',
   'fullstack',
-  'api',
   'server-side',
   'microservices',
 ];
 
+/**
+ * Seniority signal. Bare `lead` is excluded — it matches body text like "lead the effort" and
+ * awards false seniority points; use the specific lead-role phrases instead.
+ */
 export const SENIOR_KEYWORDS = [
   'senior',
   'sr.',
   'staff',
   'principal',
-  'lead',
   'team lead',
   'tech lead',
+  'engineering lead',
+  'group lead',
 ];
 
 export const AI_KEYWORDS = [
@@ -98,8 +107,9 @@ export const AI_KEYWORDS = [
 
 /**
  * Backend-PRIMARY signal — dominates even when the title says "full stack".
- * Boundary matching keeps `java` off "javascript" and `go` off "good"/"golang" (which is
- * listed explicitly).
+ * Bare `go` is excluded: word boundaries stop "good"/"golang" but NOT "go live", "go-to-market",
+ * "ready to go", "go above and beyond" — all common in frontend descriptions, each of which would
+ * wrongly apply the backend penalty. Match `golang` and explicit `go <role>` phrases instead.
  */
 export const BACKEND_PRIMARY_KEYWORDS = [
   'backend engineer',
@@ -108,7 +118,9 @@ export const BACKEND_PRIMARY_KEYWORDS = [
   'back-end developer',
   'backend-focused',
   'golang',
-  'go',
+  'go developer',
+  'go engineer',
+  'go backend',
   'java',
   'python',
   'c++',

@@ -13,8 +13,13 @@ const envSchema = z.object({
   SCORE_THRESHOLD: z.coerce.number().int().min(0).max(100).default(45),
   // LLM scoring (Phase 3). Optional — without it the scorer falls back to keyword.
   ANTHROPIC_API_KEY: z.string().optional(),
-  // Scorer selection: 'auto' uses the LLM when ANTHROPIC_API_KEY is set, else keyword.
-  SCORER: z.enum(['auto', 'keyword', 'llm']).default('auto'),
+  // Scorer selection. Default is the free keyword scorer — the LLM scorer costs money and must be
+  // opted into explicitly with SCORER=llm. `preprocess` maps an empty value (e.g. an unset GitHub
+  // Actions variable, which arrives as "") to the default instead of a validation error.
+  SCORER: z.preprocess(
+    (v) => (v === '' || v == null ? undefined : v),
+    z.enum(['keyword', 'llm']).default('keyword'),
+  ),
   // 'telegram' (default) or 'console' — lets the whole pipeline run offline.
   NOTIFIER: z.enum(['telegram', 'console']).default('telegram'),
 });

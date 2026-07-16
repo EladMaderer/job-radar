@@ -28,7 +28,10 @@ jobs:
       TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       SCORE_THRESHOLD: ${{ secrets.SCORE_THRESHOLD }}
-      # Optional (Phase 3): set this secret to enable LLM scoring. Unset => free keyword scorer.
+      # LLM scoring (Phase 3) is OFF by default (free keyword scorer). To enable it, add a
+      # repository variable SCORER=llm (Settings -> Secrets and variables -> Actions -> Variables)
+      # AND the ANTHROPIC_API_KEY secret. Unset SCORER => keyword scorer.
+      SCORER: ${{ vars.SCORER }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
     steps:
       - uses: actions/checkout@v4

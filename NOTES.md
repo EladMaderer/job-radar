@@ -85,6 +85,73 @@ language so it doubles as an interview script.
   keyword fallback keeps it working (and free) if the key is absent or the API fails. Scores set at
   first sight aren't refreshed if the description later changes materially — acceptable.
 
+## Scorer fix: drop bare `go` from the backend-primary keywords
+
+- **Decision:** Remove `'go'` from `BACKEND_PRIMARY_KEYWORDS`; keep `'golang'` and add the explicit
+  phrases `'go developer'`, `'go engineer'`, `'go backend'`.
+- **Why:** Word boundaries stop `go` from hitting "good"/"golang", but NOT "go live",
+  "go-to-market", "ready to go", "go above and beyond" — all common in ordinary frontend
+  descriptions. Each false hit applied a description-weighted −25 to a role I actually want, quietly
+  mis-ranking good jobs. (Confirmed empirically: `matchesKeyword('go live','go')` was true.)
+- **Trade-off:** A posting that says only "Go" (no "Golang"/"Go developer") for a genuinely
+  backend-Go role won't be penalized. Rare, and far better than penalizing frontend roles.
+
+## Scorer fix: drop `api` from the full-stack sweet-spot signal
+
+- **Decision:** Remove `'api'` from `BACKEND_SIGNAL_KEYWORDS` (keep node/backend/server-side/
+  microservices/full-stack).
+- **Why:** Almost every pure-frontend description says "consume REST APIs", so `hasBackendSignal`
+  was true for nearly every role and the +20 FE-oriented-full-stack sweet spot fired for
+  *everything* — erasing the exact ranking distinction it exists to make (React+Node should beat
+  pure React).
+- **Trade-off:** A full-stack role that mentions only "API" (never Node/backend/server-side) misses
+  the sweet-spot bonus. Uncommon; the base +40 still applies.
+
+## Scorer fix: bare `lead` → specific lead-role phrases
+
+- **Decision:** Remove bare `'lead'` from `SENIOR_KEYWORDS`; use `'team lead'`, `'tech lead'`,
+  `'engineering lead'`, `'group lead'` instead.
+- **Why:** `lead` matched body text like "lead the effort" / "leading a project", awarding false
+  seniority points to non-senior roles.
+- **Trade-off:** A title like "Lead Frontend Engineer" no longer gets the +15 seniority (the words
+  "lead" and "engineer" aren't adjacent). Minor — "Senior"/"Sr." still catch most senior roles, and
+  seniority is only a +15 nudge on top of the frontend + location signal.
+
+## Scorer audit: punctuation keywords already match (no code change)
+
+- **Decision:** After auditing `scoring/match.ts`, leave the boundary logic as-is; lock it with a
+  test asserting every keyword matches itself and that `c++`/`c#`/`.net`/`sr.`/`node.js` match real
+  usage.
+- **Why:** The concern was that `\b`-style boundaries fail on punctuation (`\bc\+\+\b`). But the
+  matcher uses lookbehind/lookahead (`(?<![a-z0-9])…(?![a-z0-9])`), not `\b`, so punctuation-bearing
+  terms match correctly — verified empirically for all of them. "Fixing" working code would have
+  been the real risk.
+- **Trade-off:** `.net` still won't match inside "asp.net" (leading `.` is preceded by a letter);
+  acceptable — standalone ".NET" matches, and the test documents the behavior.
+
+## Scorer safety: keyword scorer is the default; LLM is explicit opt-in
+
+- **Decision:** `getScorer()` returns the keyword scorer unless `SCORER=llm` is set explicitly
+  (dropped the old `auto` mode that enabled the LLM whenever an API key was present). Env default is
+  `keyword`; the poll workflow reads `SCORER` from a repo variable (empty → keyword).
+- **Why:** The LLM scorer costs real money (one Anthropic call per new job; a baseline run is
+  hundreds of calls). Enabling it merely because a key exists risks a surprise bill on the first
+  run. Cost must be an explicit choice.
+- **Trade-off:** After this change, production silently used keyword scoring until `SCORER=llm` is
+  set — a deliberate, safe default. Re-enabling the LLM is a one-line repo-variable change.
+
+## Scorer tests (node:test, no new dependency)
+
+- **Decision:** Add `src/scoring/keywordScorer.test.ts` (run via `npm test` → `tsx --test`) asserting
+  the ranking both directions (React+Node > pure React > backend-heavy "full stack"), that "go
+  live"/"go-to-market"/"REST API" neither penalize nor trigger the sweet spot, and a keyword-integrity
+  audit (every keyword matches itself — catches any that could never match).
+- **Why:** These scoring rules are subtle and easy to regress silently; the false-firing bugs above
+  shipped unnoticed. Tests lock the intended behavior.
+- **Trade-off:** Uses Node's built-in test runner (no Jest/Vitest dependency), so features are
+  minimal — fine for pure-function scorer tests. Test files live under `src` so `npm run build`
+  compiles them into `dist` (harmless; dist isn't deployed — production runs source via tsx).
+
 ## Store every relevant job, threshold only gates alerts
 
 - **Decision:** Persist every job that passes the base filter (Israel / remote-friendly, not

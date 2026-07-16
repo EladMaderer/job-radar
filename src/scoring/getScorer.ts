@@ -42,17 +42,16 @@ function withFrontendPrefilter(primary: Scorer): Scorer {
 }
 
 /**
- * Pick the scorer from config:
- * - SCORER=keyword       -> keyword only (free, no API).
- * - SCORER=llm           -> LLM (requires ANTHROPIC_API_KEY), keyword fallback per job.
- * - SCORER=auto (default) -> LLM when ANTHROPIC_API_KEY is set, otherwise keyword.
+ * Pick the scorer from config. The keyword scorer is the DEFAULT — the LLM scorer costs real money
+ * (one Anthropic call per new job; a baseline run is hundreds of calls), so it must be explicit
+ * opt-in via SCORER=llm, never triggered merely by an API key being present.
+ * - SCORER=keyword (default) -> keyword only (free, no API).
+ * - SCORER=llm               -> LLM (requires ANTHROPIC_API_KEY), frontend pre-filter + keyword fallback.
  */
 export function getScorer(): Scorer {
   const { SCORER, ANTHROPIC_API_KEY } = config;
 
-  if (SCORER === 'keyword') return keywordScorer;
-
-  if (SCORER === 'llm' || (SCORER === 'auto' && ANTHROPIC_API_KEY)) {
+  if (SCORER === 'llm') {
     if (!ANTHROPIC_API_KEY) {
       console.warn('[score] SCORER=llm but ANTHROPIC_API_KEY is unset — using keyword scorer.');
       return keywordScorer;
@@ -62,6 +61,6 @@ export function getScorer(): Scorer {
     return withFrontendPrefilter(withKeywordFallback(createLlmScorer(ANTHROPIC_API_KEY)));
   }
 
-  console.log('[score] using keyword scorer (no ANTHROPIC_API_KEY set).');
+  console.log('[score] using keyword scorer (default; set SCORER=llm to enable LLM scoring).');
   return keywordScorer;
 }
