@@ -6,8 +6,9 @@ services:
       POSTGRES_USER: jobsradar
       POSTGRES_PASSWORD: jobsradar
       POSTGRES_DB: jobsradar
+    # Host port 5433 (not 5432) to avoid clashing with a native Postgres if you run one.
     ports:
-      - '5432:5432'
+      - '5433:5432'
     volumes:
       - pgdata:/var/lib/postgresql/data
 
