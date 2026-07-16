@@ -39,7 +39,7 @@ export function renderJobForScoring(job: {
   location: string | null;
   description: string | null;
 }): string {
-  const description = (job.description ?? '').slice(0, 2000);
+  const description = (job.description ?? '').slice(0, 1200);
   return [
     `Title: ${job.title}`,
     `Company: ${job.company}`,

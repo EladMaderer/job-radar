@@ -1,6 +1,7 @@
 import { config } from '../config/env.js';
 import { keywordScorer } from './keywordScorer.js';
 import { createLlmScorer } from './llmScorer.js';
+import { hasFrontendSignal } from './prefilter.js';
 import type { Job } from '../ats/types.js';
 import type { Scorer } from './types.js';
 
@@ -21,6 +22,26 @@ function withKeywordFallback(primary: Scorer): Scorer {
 }
 
 /**
+ * Drop jobs with no frontend signal for free (no LLM call). Since React/React Native is required,
+ * a role with zero frontend signal is never a fit — this saves an API call per obvious non-match,
+ * which is most of the board. Real frontend roles still reach `primary` for the nuanced judgment.
+ */
+function withFrontendPrefilter(primary: Scorer): Scorer {
+  return {
+    async score(job: Job) {
+      if (!hasFrontendSignal(job)) {
+        return {
+          relevant: false,
+          score: 0,
+          why: 'no frontend/React signal (pre-filter, no LLM call)',
+        };
+      }
+      return primary.score(job);
+    },
+  };
+}
+
+/**
  * Pick the scorer from config:
  * - SCORER=keyword       -> keyword only (free, no API).
  * - SCORER=llm           -> LLM (requires ANTHROPIC_API_KEY), keyword fallback per job.
@@ -36,8 +57,9 @@ export function getScorer(): Scorer {
       console.warn('[score] SCORER=llm but ANTHROPIC_API_KEY is unset — using keyword scorer.');
       return keywordScorer;
     }
-    console.log('[score] using LLM scorer (Claude Haiku 4.5) with keyword fallback.');
-    return withKeywordFallback(createLlmScorer(ANTHROPIC_API_KEY));
+    console.log('[score] using LLM scorer (Claude Haiku 4.5) with frontend pre-filter + fallback.');
+    // Pre-filter first (skips the LLM call for obvious non-frontend roles), then the LLM with fallback.
+    return withFrontendPrefilter(withKeywordFallback(createLlmScorer(ANTHROPIC_API_KEY)));
   }
 
   console.log('[score] using keyword scorer (no ANTHROPIC_API_KEY set).');
