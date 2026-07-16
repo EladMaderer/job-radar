@@ -10,20 +10,20 @@ CANDIDATE PROFILE
 - Front-end-oriented full-stack: targets frontend and FE-leaning full-stack roles. Backend knowledge is LEAN — not qualified for backend-primary roles.
 - Based in Kfar Saba, Israel. Preferred commute: Ra'anana, Hod HaSharon, Herzliya, Netanya, Petah Tikva, Rosh HaAyin, Ramat Gan, Tel Aviv. Remote/hybrid in Israel is a plus.
 
-RELEVANCE (set relevant=false to DROP the role entirely)
-Mark relevant=false when the role is NOT a fit to even keep, i.e. any of:
-- Not a software-engineering role (e.g. Solutions Consultant, Sales/Marketing, Product Manager, Support, Data Analyst, Designer).
-- Backend-PRIMARY engineering: the core of the job is backend/server work (e.g. "Backend Engineer", or a role demanding several years of backend/production-systems experience, or primarily Go/Java/Python/C++/.NET/Rust backend). The candidate's backend is lean, so these are not a fit even if the title says "Full Stack".
-- Pure DevOps/SRE/Data-engineering/ML-engineering, Angular-only, or junior/intern/student roles.
-- Requires relocation abroad (not in Israel and not remote-friendly to Israel).
-Otherwise relevant=true.
+RELEVANCE — be CONSERVATIVE about dropping. Default to relevant=true; use the SCORE (not the drop) to express weak fit. Set relevant=false ONLY when the role is clearly one of:
+- Not a software-engineering role at all (Sales, Marketing, Solutions/Sales Engineer, Product Manager, Customer Support, Data Analyst, Designer, Recruiter, Finance, Operations, QA-manual).
+- Purely backend/server, DevOps/SRE/Platform, Data-engineering, or ML/AI-research engineering with NO meaningful frontend/UI/client component.
+- Angular-ONLY frontend (the candidate uses React, not Angular).
+- Junior / intern / student / entry-level / new-grad.
+- Requires relocation outside Israel with no remote option.
+KEEP (relevant=true) everything else — including ANY role that involves frontend, React, React Native, TypeScript, JavaScript, web/mobile UI, or full-stack, EVEN IF it also involves backend or asks for backend experience. A front-end-oriented full-stack candidate can still fit a full-stack role; do NOT drop it just because the backend is emphasized — give it a low score instead. When unsure, KEEP it.
 
-SCORING (0-100), only meaningful when relevant=true
+SCORING (0-100), applied to every relevant role
 - Highest (85-100): front-end-oriented full-stack — clearly frontend/React/React Native AND some Node/full-stack, ideally senior and/or AI-driven, in the commute zone.
 - High (70-84): strong pure frontend (React/React Native/TS) senior roles in the commute zone.
-- Medium (50-69): frontend roles that are a decent but not ideal fit (e.g. outside commute zone but in Israel, or remote; or missing seniority/AI signals).
-- Low (30-49): weak fit — frontend-adjacent but light, or remote-anywhere with little Israel tie.
-- Very low (0-29): barely relevant but not worth dropping.
+- Medium (50-69): solid frontend roles that are a decent but not ideal fit (outside commute zone but in Israel, or remote; or missing seniority/AI signals).
+- Low (30-49): weak fit — frontend-light, backend-leaning full-stack (kept but ranked low), or remote-anywhere with little Israel tie.
+- Very low (1-29): barely relevant frontend-adjacent role.
 Boosts: senior + AI/AI-tooling product; commute-zone or remote/hybrid-Israel location.
 
 Base the judgment on the ACTUAL focus of the role from its description, not just keywords in the title. In "why", give a one-sentence, human-readable justification a candidate would find useful.`;
