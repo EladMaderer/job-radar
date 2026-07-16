@@ -30,20 +30,23 @@ export async function findExistingExternalIds(
 }
 
 /**
- * Insert a newly-seen job. `alerted` controls alerted_at: false leaves it NULL so the job is
- * owed an alert; true stamps it now() to suppress alerting (used for the silent baseline seed).
- * ON CONFLICT DO NOTHING guards against a race with a concurrent run.
+ * Insert a newly-seen job — including ones judged NOT relevant, so the decision is remembered and
+ * the job is never re-scored (this is what stops irrelevant jobs from being re-billed on the LLM
+ * every cycle). `relevant=false` rows are stored lean (no description) and hidden from the
+ * dashboard. `alerted` controls alerted_at (true = silent baseline seed). ON CONFLICT DO NOTHING
+ * guards against a race with a concurrent run.
  */
 export async function insertJob(
   job: Job,
   fitScore: number,
   why: string,
   alerted: boolean,
+  relevant: boolean,
 ): Promise<void> {
   await pool.query(
     `INSERT INTO jobs
-       (source, external_id, company, title, location, url, description, posted_at, fit_score, why, alerted_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, CASE WHEN $11::boolean THEN now() ELSE NULL END)
+       (source, external_id, company, title, location, url, description, posted_at, fit_score, why, alerted_at, relevant)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, CASE WHEN $11::boolean THEN now() ELSE NULL END, $12)
      ON CONFLICT (source, external_id) DO NOTHING`,
     [
       job.source,
@@ -52,11 +55,12 @@ export async function insertJob(
       job.title,
       job.location,
       job.url,
-      job.description,
+      relevant ? job.description : null, // don't store descriptions for irrelevant rows
       job.postedAt,
       fitScore,
       why,
       alerted,
+      relevant,
     ],
   );
 }
@@ -78,7 +82,7 @@ export async function findPendingAlerts(threshold: number, limit: number): Promi
   }>(
     `SELECT id, company, title, location, url, fit_score, why
        FROM jobs
-      WHERE alerted_at IS NULL AND fit_score >= $1
+      WHERE alerted_at IS NULL AND relevant = true AND fit_score >= $1
       ORDER BY fit_score DESC
       LIMIT $2`,
     [threshold, limit],
@@ -97,7 +101,7 @@ export async function findPendingAlerts(threshold: number, limit: number): Promi
 /** Total jobs still owed an alert (for the per-cycle "beyond cap" log). */
 export async function countPendingAlerts(threshold: number): Promise<number> {
   const { rows } = await pool.query<{ count: string }>(
-    'SELECT count(*)::int AS count FROM jobs WHERE alerted_at IS NULL AND fit_score >= $1',
+    'SELECT count(*)::int AS count FROM jobs WHERE alerted_at IS NULL AND relevant = true AND fit_score >= $1',
     [threshold],
   );
   return rows[0] ? Number(rows[0].count) : 0;
@@ -199,7 +203,9 @@ function mapJobRow(r: JobRow): JobListItem {
 export async function listJobs(
   filters: ListJobsFilters = {},
 ): Promise<{ jobs: JobListItem[]; total: number }> {
-  const where: string[] = [];
+  // Only relevant jobs by default. Irrelevant rows are stored purely as dedup memory (so the
+  // scorer never re-processes them) and should never appear in the dashboard.
+  const where: string[] = ['relevant = true'];
   const params: unknown[] = [];
 
   if (filters.status) {

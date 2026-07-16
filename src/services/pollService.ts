@@ -23,7 +23,7 @@ export interface PollSummary {
   candidates: number; // passed the base location filter
   inserted: number; // newly stored this cycle
   updated: number; // already-seen rows refreshed
-  dropped: number; // new jobs the scorer judged irrelevant (not stored)
+  dropped: number; // new jobs judged irrelevant — stored lean as dedup memory, hidden from dashboard
   alerted: number; // alerts actually sent (and marked) this cycle
   failedAlerts: number; // sends that failed — stay pending, retried next cycle
   baseline: boolean; // true on the first-ever run (seed silently)
@@ -92,16 +92,15 @@ export async function runPollCycle(scorer: Scorer = getScorer()): Promise<PollSu
     }
   }
 
-  // Pass 2: score new jobs in parallel (each is an LLM round-trip), then store or drop.
-  // Baseline seed marks everything alerted (silent); otherwise leave pending for alerting.
+  // Pass 2: score new jobs in parallel (each may be an LLM round-trip). ALWAYS store the result —
+  // including irrelevant jobs (relevant=false) — so a job is scored exactly once and never
+  // re-billed on a later cycle. Baseline seed marks everything alerted (silent); otherwise leave
+  // pending for alerting (only relevant, above-threshold jobs are actually alerted).
   await mapWithConcurrency(newJobs, SCORE_CONCURRENCY, async (job) => {
     const { score, why, relevant } = await scorer.score(job);
-    if (!relevant) {
-      summary.dropped += 1;
-      return;
-    }
-    await insertJob(job, score, why, baseline);
-    summary.inserted += 1;
+    await insertJob(job, score, why, baseline, relevant);
+    if (relevant) summary.inserted += 1;
+    else summary.dropped += 1;
   });
 
   if (!baseline) {
