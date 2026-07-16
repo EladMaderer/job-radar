@@ -33,12 +33,14 @@ export const THEIRSTACK_SENIORITIES = ['senior', 'staff', 'c_level'];
  * Posted-age window for the FIRST run only (no watermark yet) — i.e. a fresh seed / backfill. This
  * is the one chance to capture the backlog of jobs that were ALREADY OPEN when we started: the
  * incremental watermark only ever sees jobs discovered *after* run #1, so anything older is
- * invisible forever unless this window caught it. 30 days ≈ the useful shelf-life of an open role
- * and ≈110 credits with the seniority filter (fits the 200/month free tier). A shorter window
- * saves credits but silently drops still-open roles — exactly the Clover-Security miss that
- * prompted this. Ongoing runs still use THEIRSTACK_MAX_AGE_DAYS (14) via the watermark.
+ * invisible forever unless this window caught it. 33 days ≈ the useful shelf-life of an open role;
+ * measured at ~116 matching jobs with the seniority filter — safely under the 5-page / 125-job
+ * cap (truncation would be permanent: the watermark jumps to now, so overflow is never re-fetched)
+ * and inside the 200/month free tier. A shorter window silently drops still-open roles — exactly
+ * the Clover-Security miss that prompted this. Ongoing runs still use THEIRSTACK_MAX_AGE_DAYS (14)
+ * via the watermark.
  */
-export const THEIRSTACK_FIRST_RUN_MAX_AGE_DAYS = 30;
+export const THEIRSTACK_FIRST_RUN_MAX_AGE_DAYS = 33;
 
 /** Overlap subtracted from the discovered_at watermark so boundary jobs aren't missed. */
 export const THEIRSTACK_WATERMARK_OVERLAP_MS = 60 * 60 * 1000; // 1 hour

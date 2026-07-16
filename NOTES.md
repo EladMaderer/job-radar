@@ -261,9 +261,10 @@ language so it doubles as an interview script.
 
 ## TheirStack: first-run window is 30 days (capture the open backlog, not just fresh posts)
 
-- **Decision:** The first run (fresh seed / no watermark yet) uses a **30-day** posted-age window,
-  and the per-run page cap is 5 (free-tier max, ≤125 jobs). Ongoing runs still use 14 days via the
-  watermark. Re-seed = delete the source's rows so the watermark resets, then trigger the workflow.
+- **Decision:** The first run (fresh seed / no watermark yet) uses a **33-day** posted-age window
+  (measured ~116 jobs, safely under the 5-page / 125-job cap), and the page cap is the free-tier
+  max of 5. Ongoing runs still use 14 days via the watermark. Re-seed = delete the source's rows so
+  the watermark resets, then trigger the workflow.
 - **Why:** The first run is the ONLY chance to capture roles that were already open when we started
   — the incremental watermark only sees jobs discovered *after* run #1. The original 2-day window
   (chosen to save credits on a "silent seed") meant the entire standing backlog of open jobs was
