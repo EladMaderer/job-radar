@@ -128,16 +128,33 @@ export interface JobListItem {
   lastSeenAt: Date;
 }
 
+/** Whitelisted sort keys -> columns. Whitelisting keeps the ORDER BY clause injection-proof. */
+export const SORT_COLUMNS = {
+  score: 'fit_score',
+  firstSeen: 'first_seen_at',
+  posted: 'posted_at',
+  company: 'company',
+  title: 'title',
+  status: 'status',
+} as const;
+
+export type SortKey = keyof typeof SORT_COLUMNS;
+export type SortOrder = 'asc' | 'desc';
+
 export interface ListJobsFilters {
   status?: JobStatus;
   minScore?: number;
   search?: string; // matches title or company, case-insensitive
+  sort?: SortKey;
+  order?: SortOrder;
   limit?: number;
   offset?: number;
 }
 
 const LIST_DEFAULT_LIMIT = 100;
 const LIST_MAX_LIMIT = 500;
+const DEFAULT_SORT: SortKey = 'firstSeen';
+const DEFAULT_ORDER: SortOrder = 'desc';
 
 /**
  * Read jobs for the dashboard, newest first, with optional filters. Parameterized throughout —
@@ -175,12 +192,17 @@ export async function listJobs(
   const limitParam = params.length + 1;
   const offsetParam = params.length + 2;
 
+  const sortColumn = SORT_COLUMNS[filters.sort ?? DEFAULT_SORT];
+  const sortDir = filters.order === 'asc' ? 'ASC' : filters.order === 'desc' ? 'DESC' : undefined;
+  const dir = sortDir ?? (DEFAULT_ORDER === 'desc' ? 'DESC' : 'ASC');
+  // sortColumn/dir come only from whitelists above, never user strings — safe to interpolate.
+  // Tie-break on id so paging is stable when the sort column has duplicates.
   const { rows } = await pool.query(
     `SELECT id, source, company, title, location, url, fit_score, why, status,
             posted_at, first_seen_at, last_seen_at
        FROM jobs
        ${whereSql}
-       ORDER BY first_seen_at DESC
+       ORDER BY ${sortColumn} ${dir} NULLS LAST, id DESC
        LIMIT $${limitParam} OFFSET $${offsetParam}`,
     [...params, limit, offset],
   );

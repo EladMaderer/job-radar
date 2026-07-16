@@ -1,0 +1,212 @@
+:root {
+  --bg: #0f1115;
+  --panel: #171a21;
+  --panel-2: #1e222b;
+  --border: #2a2f3a;
+  --text: #e6e8ec;
+  --muted: #9aa3b2;
+  --accent: #4f8cff;
+  --green: #3fb950;
+  --amber: #d29922;
+  --red: #f85149;
+  --purple: #a371f7;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-size: 14px;
+}
+
+.app {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 1.5rem 1.25rem 4rem;
+}
+
+header.app-header {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+
+header.app-header h1 {
+  font-size: 1.4rem;
+  margin: 0;
+}
+
+header.app-header .count {
+  color: var(--muted);
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.controls input[type='text'],
+.controls input[type='number'],
+.controls select {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 0.45rem 0.6rem;
+  font-size: 0.9rem;
+}
+
+.controls input[type='text'] {
+  flex: 1;
+  min-width: 200px;
+}
+
+.controls label {
+  color: var(--muted);
+  font-size: 0.82rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 760px;
+}
+
+thead th {
+  text-align: left;
+  padding: 0.6rem 0.75rem;
+  background: var(--panel);
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 0.8rem;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  user-select: none;
+}
+
+thead th.no-sort {
+  cursor: default;
+}
+
+thead th .arrow {
+  color: var(--accent);
+  margin-left: 0.25rem;
+}
+
+tbody td {
+  padding: 0.6rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+
+tbody tr:hover {
+  background: var(--panel);
+}
+
+.score {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.score.high {
+  color: var(--green);
+}
+.score.mid {
+  color: var(--amber);
+}
+.score.low {
+  color: var(--muted);
+}
+
+.title-cell a {
+  color: var(--text);
+  text-decoration: none;
+  font-weight: 600;
+}
+.title-cell a:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+.why {
+  color: var(--muted);
+  font-size: 0.78rem;
+  margin-top: 0.2rem;
+  max-width: 480px;
+}
+
+.company {
+  white-space: nowrap;
+}
+.location {
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.badge {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: capitalize;
+  border: 1px solid transparent;
+}
+.badge.new {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.badge.interested {
+  color: var(--purple);
+  border-color: var(--purple);
+}
+.badge.applied {
+  color: var(--green);
+  border-color: var(--green);
+}
+.badge.rejected {
+  color: var(--red);
+  border-color: var(--red);
+}
+.badge.interview {
+  color: var(--amber);
+  border-color: var(--amber);
+}
+
+.date {
+  color: var(--muted);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.state-msg {
+  padding: 2rem;
+  text-align: center;
+  color: var(--muted);
+}
+.state-msg.error {
+  color: var(--red);
+}

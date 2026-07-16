@@ -1,11 +1,14 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import {
   listJobs,
+  SORT_COLUMNS,
   type JobStatus,
   type ListJobsFilters,
+  type SortKey,
 } from '../src/repositories/jobsRepository.js';
 
 const VALID_STATUSES: JobStatus[] = ['new', 'interested', 'applied', 'rejected', 'interview'];
+const VALID_SORTS = Object.keys(SORT_COLUMNS) as SortKey[];
 
 /** First value of a query param (Vercel gives string | string[]). */
 function first(value: string | string[] | undefined): string | undefined {
@@ -27,6 +30,12 @@ function parseFilters(query: VercelRequest['query']): ListJobsFilters {
 
   const search = first(query.search);
   if (search) filters.search = search;
+
+  const sort = first(query.sort);
+  if (sort && (VALID_SORTS as string[]).includes(sort)) filters.sort = sort as SortKey;
+
+  const order = first(query.order);
+  if (order === 'asc' || order === 'desc') filters.order = order;
 
   const limit = first(query.limit);
   if (limit !== undefined && !Number.isNaN(Number(limit))) filters.limit = Number(limit);

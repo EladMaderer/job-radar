@@ -8,7 +8,7 @@ export interface JobListItem {
   url: string;
   fitScore: number | null;
   why: string | null;
-  status: 'new' | 'interested' | 'applied' | 'rejected' | 'interview';
+  status: JobStatus;
   postedAt: string | null;
   firstSeenAt: string;
   lastSeenAt: string;
@@ -18,3 +18,10 @@ export interface JobsResponse {
   jobs: JobListItem[];
   total: number;
 }
+
+export type JobStatus = 'new' | 'interested' | 'applied' | 'rejected' | 'interview';
+
+export const STATUSES: JobStatus[] = ['new', 'interested', 'applied', 'rejected', 'interview'];
+
+export type SortKey = 'score' | 'firstSeen' | 'posted' | 'company' | 'title' | 'status';
+export type SortOrder = 'asc' | 'desc';
