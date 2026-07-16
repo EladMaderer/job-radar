@@ -17,7 +17,9 @@ function safeEqual(a: string, b: string): boolean {
  *   if (!requireAuth(req, res)) return;
  */
 export function requireAuth(req: VercelRequest, res: VercelResponse): boolean {
-  const expected = process.env.DASHBOARD_PASSWORD;
+  // Trim so a trailing newline/space in the env var value (common when pasting into an env-var
+  // box) doesn't silently reject every login.
+  const expected = process.env.DASHBOARD_PASSWORD?.trim();
   if (!expected) {
     console.error('[auth] DASHBOARD_PASSWORD is not set — refusing all requests');
     res.status(500).json({ error: 'Server auth not configured' });
@@ -25,7 +27,7 @@ export function requireAuth(req: VercelRequest, res: VercelResponse): boolean {
   }
 
   const header = req.headers.authorization ?? '';
-  const token = header.startsWith('Bearer ') ? header.slice('Bearer '.length) : '';
+  const token = (header.startsWith('Bearer ') ? header.slice('Bearer '.length) : '').trim();
   if (!token || !safeEqual(token, expected)) {
     res.status(401).json({ error: 'Unauthorized' });
     return false;
