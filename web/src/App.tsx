@@ -13,10 +13,14 @@ import {
 
 const PAGE_SIZE = 10;
 
-const COLUMNS: { key: SortKey; label: string }[] = [
+// A header is sortable when it has a `key` (a whitelisted SortKey); Source has no server sort.
+type Column = { label: string; key?: SortKey };
+const COLUMNS: Column[] = [
   { key: 'score', label: 'Score' },
   { key: 'title', label: 'Role' },
   { key: 'company', label: 'Company' },
+  { label: 'Source' },
+  { key: 'posted', label: 'Published' },
   { key: 'status', label: 'Status' },
   { key: 'firstSeen', label: 'First seen' },
 ];
@@ -35,6 +39,26 @@ function formatDate(iso: string | null): string {
     month: 'short',
     day: 'numeric',
   });
+}
+
+/**
+ * Publication date + exact local time, when the source gives one. Many boards post date-only
+ * (stored as UTC midnight); TheirStack is date-only too. So we show the time only when it's real —
+ * a non-midnight-UTC value — and render it in the viewer's local timezone.
+ */
+function formatDateTime(iso: string | null): string {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  const date = d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+  const dateOnly = d.getUTCHours() === 0 && d.getUTCMinutes() === 0 && d.getUTCSeconds() === 0;
+  if (dateOnly) return date;
+  const time = d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+  return `${date}, ${time}`;
+}
+
+/** Which pipeline surfaced the job: the market-wide TheirStack API vs our ATS-board poller. */
+function sourceLabel(source: string): string {
+  return source === 'theirstack' ? 'TheirStack' : 'Poll service';
 }
 
 /** Debounce a rapidly-changing value (used for the search box). */
@@ -285,12 +309,18 @@ export function App() {
             <table>
               <thead>
                 <tr>
-                  {COLUMNS.map((col) => (
-                    <th key={col.key} onClick={() => toggleSort(col.key)}>
-                      {col.label}
-                      {sort === col.key && <span className="arrow">{arrow}</span>}
-                    </th>
-                  ))}
+                  {COLUMNS.map(({ key, label }) =>
+                    key ? (
+                      <th key={label} onClick={() => toggleSort(key)}>
+                        {label}
+                        {sort === key && <span className="arrow">{arrow}</span>}
+                      </th>
+                    ) : (
+                      <th key={label} className="no-sort">
+                        {label}
+                      </th>
+                    ),
+                  )}
                 </tr>
               </thead>
               <tbody>
@@ -310,6 +340,16 @@ export function App() {
                     <td data-label="Company">
                       <div className="company">{job.company}</div>
                       <div className="location">{job.location ?? '—'}</div>
+                    </td>
+                    <td data-label="Source">
+                      <span
+                        className={`source-tag ${job.source === 'theirstack' ? 'theirstack' : 'poll'}`}
+                      >
+                        {sourceLabel(job.source)}
+                      </span>
+                    </td>
+                    <td className="date" data-label="Published">
+                      {formatDateTime(job.postedAt)}
                     </td>
                     <td data-label="Status">
                       <select

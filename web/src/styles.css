@@ -166,7 +166,7 @@ header.app-header .logout:hover {
 table {
   width: 100%;
   border-collapse: collapse;
-  min-width: 760px;
+  min-width: 880px;
 }
 
 thead th {
@@ -239,6 +239,19 @@ tbody tr:hover {
 .location {
   color: var(--muted);
   white-space: nowrap;
+}
+
+/* Provenance tag: TheirStack (market-wide API) vs our ATS-board poller. */
+.source-tag {
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.source-tag.theirstack {
+  color: var(--accent);
+}
+.source-tag.poll {
+  color: var(--muted);
 }
 
 .badge {
