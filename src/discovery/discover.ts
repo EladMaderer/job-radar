@@ -13,7 +13,9 @@ import { greenhouseSlugs, leverSlugs } from './slugSource.js';
  *
  * This probes ~12k public boards, so it's a heavy one-off job — NOT part of the poll cycle.
  */
-const PROBE_CONCURRENCY = 24;
+// Default is fine on a clean network (GitHub Actions); lower it on a flaky/proxied local network
+// (e.g. DISCOVER_CONCURRENCY=8) so connection resets under load don't drop real boards.
+const PROBE_CONCURRENCY = Number(process.env.DISCOVER_CONCURRENCY) || 20;
 const OUTPUT = join(dirname(fileURLToPath(import.meta.url)), '..', 'registry', 'discovered.json');
 
 export async function discover(): Promise<DiscoveredBoard[]> {

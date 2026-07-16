@@ -11,24 +11,44 @@ export interface DiscoveredBoard {
   ilCount: number;
 }
 
-const PROBE_TIMEOUT_MS = 8_000;
+const PROBE_TIMEOUT_MS = 10_000;
+const PROBE_ATTEMPTS = 3; // retry transient failures so real boards aren't silently dropped
 
-/** Single-attempt GET (no retry — 404s are the common case and should fail fast). */
+/** Keep a board only if it has a real Israel presence, not a stray Tel Aviv role. */
+const MIN_IL_ABSOLUTE = 3; // >= this many Israel roles, OR
+const MIN_IL_RATIO = 0.25; // Israel roles make up >= this share of the board (catches small startups)
+
+const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * GET JSON. Retries transient failures (network errors, timeouts, 429/5xx) — a single probe over
+ * ~12k boards on a flaky network would otherwise lose real boards. A 404 (no such board) is
+ * definitive and returns null immediately.
+ */
 async function getJson<T>(url: string): Promise<T | null> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), PROBE_TIMEOUT_MS);
-  try {
-    const res = await fetch(url, {
-      headers: { accept: 'application/json', 'user-agent': USER_AGENT },
-      signal: controller.signal,
-    });
-    if (!res.ok) return null;
-    return (await res.json()) as T;
-  } catch {
-    return null;
-  } finally {
-    clearTimeout(timer);
+  for (let attempt = 0; attempt < PROBE_ATTEMPTS; attempt += 1) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), PROBE_TIMEOUT_MS);
+    try {
+      const res = await fetch(url, {
+        headers: { accept: 'application/json', 'user-agent': USER_AGENT },
+        signal: controller.signal,
+      });
+      if (res.ok) return (await res.json()) as T;
+      if (res.status !== 429 && res.status < 500) return null; // 404 etc. — definitive
+    } catch {
+      // network error / timeout — fall through to retry
+    } finally {
+      clearTimeout(timer);
+    }
+    if (attempt < PROBE_ATTEMPTS - 1) await sleep(500 * (attempt + 1));
   }
+  return null;
+}
+
+/** True if the board's Israel roles clear the presence bar (absolute count or share of board). */
+function hasIsraelPresence(ilCount: number, total: number): boolean {
+  return ilCount >= MIN_IL_ABSOLUTE || (total > 0 && ilCount / total >= MIN_IL_RATIO);
 }
 
 /** Count how many of these minimal jobs are located in Israel (reuses the poller's exact rule). */
@@ -65,7 +85,7 @@ export async function probeGreenhouse(slug: string): Promise<DiscoveredBoard | n
   const il = countIsrael(
     jobs.map((j) => ({ location: j.location?.name ?? null, countryCode: null, remote: false })),
   );
-  if (il === 0) return null;
+  if (!hasIsraelPresence(il, jobs.length)) return null;
   return {
     ats: 'greenhouse',
     slug,
@@ -84,6 +104,6 @@ export async function probeLever(slug: string): Promise<DiscoveredBoard | null> 
       remote: false,
     })),
   );
-  if (il === 0) return null;
+  if (!hasIsraelPresence(il, jobs.length)) return null;
   return { ats: 'lever', slug, name: prettify(slug), ilCount: il };
 }
