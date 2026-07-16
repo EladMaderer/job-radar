@@ -86,6 +86,21 @@ language so it doubles as an interview script.
   tightening later is a one-character `.env`/secret change.
 - **Trade-off:** A few more pings at first. Better than silently missing real matches.
 
+## Alerting decoupled from storage (alerted_at), failed sends retry
+
+- **Decision:** Add `alerted_at` to `jobs`. A new job is stored immediately with
+  `alerted_at = NULL` ("owed an alert"); it's set to `now()` only after its Telegram message
+  actually sends. Each cycle scans for un-alerted, above-threshold jobs and sends them; a send
+  failure is logged, left pending, and retried next cycle — never fatal, never lost. A cycle
+  where *every* alert failed exits non-zero (likely misconfig → red in Actions); partial/no
+  failures stay green.
+- **Why:** The original design marked a job "seen" on insert and sent alerts in the same step. A
+  single failed send (e.g. a wrong Telegram chat id) crashed the whole run AND, because the job
+  was already stored, it never re-alerted — the alert was silently lost forever. Found this the
+  hard way while wiring up Telegram. Decoupling makes alerts durable and self-healing.
+- **Trade-off:** One extra column and a per-cycle "pending" query (indexed, trivial). Baseline
+  seed and pre-existing rows are backfilled `alerted_at = now()` so they never ping retroactively.
+
 ## Per-request retry on ATS fetches
 
 - **Decision:** `fetchJson` retries a couple of times with linear backoff (20s timeout each).

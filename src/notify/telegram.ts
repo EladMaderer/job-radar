@@ -1,17 +1,9 @@
 import { config } from '../config/env.js';
-import {
-  APPLY_BUTTON_LABEL,
-  formatAlert,
-  MAX_ALERTS_PER_CYCLE,
-  overflowNote,
-  TELEGRAM_SEND_GAP_MS,
-} from '../constants/messages.js';
+import { APPLY_BUTTON_LABEL, formatAlert } from '../constants/messages.js';
 import { HTTP_TIMEOUT_MS, USER_AGENT } from '../constants/http.js';
 import type { JobAlert, Notifier } from './types.js';
 
 const API_BASE = 'https://api.telegram.org';
-
-const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
 /** POST to the Bot API sendMessage endpoint. Throws with the API's description on failure. */
 async function sendMessage(text: string, replyMarkup?: unknown): Promise<void> {
@@ -43,19 +35,9 @@ function applyButton(url: string): unknown {
   return { inline_keyboard: [[{ text: APPLY_BUTTON_LABEL, url }]] };
 }
 
-/**
- * Sends each alert as its own message with an [ Apply ] URL button. Sequential with a small gap
- * to respect Telegram's per-chat rate limit; caps the batch and appends an overflow note.
- */
+/** Sends one alert as a message with an [ Apply ] URL button. Throws if Telegram rejects it. */
 export const telegramNotifier: Notifier = {
-  async sendAlerts(alerts: JobAlert[]): Promise<void> {
-    const shown = alerts.slice(0, MAX_ALERTS_PER_CYCLE);
-    for (const alert of shown) {
-      await sendMessage(formatAlert(alert), applyButton(alert.job.url));
-      await sleep(TELEGRAM_SEND_GAP_MS);
-    }
-    if (alerts.length > shown.length) {
-      await sendMessage(overflowNote(alerts.length - shown.length));
-    }
+  async sendAlert(alert: JobAlert): Promise<void> {
+    await sendMessage(formatAlert(alert), applyButton(alert.url));
   },
 };
