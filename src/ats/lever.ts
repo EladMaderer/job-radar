@@ -41,6 +41,7 @@ export const leverAdapter: AtsAdapter = async (slug, companyName) => {
       description: raw.descriptionPlain?.trim() || null,
       postedAt: raw.createdAt ? new Date(raw.createdAt) : null,
       remote: raw.workplaceType?.toLowerCase() === 'remote',
+      countryCode: raw.country?.trim() || null,
     };
   });
 };

@@ -14,6 +14,8 @@ export interface Job {
    * the location string has no city.
    */
   remote: boolean;
+  /** ISO country code when the ATS provides one (Lever `country`, e.g. 'IL'); null otherwise. */
+  countryCode: string | null;
 }
 
 /** Fetches and normalizes all open jobs for one company on one ATS. */

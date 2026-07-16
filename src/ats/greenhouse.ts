@@ -39,6 +39,7 @@ export const greenhouseAdapter: AtsAdapter = async (slug, companyName) => {
       description: htmlToText(raw.content),
       postedAt: raw.first_published ? new Date(raw.first_published) : null,
       remote: isRemote(location),
+      countryCode: null, // Greenhouse board API has no structured country field
     };
   });
 };
