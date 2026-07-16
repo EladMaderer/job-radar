@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { requireAuth } from './_auth.js';
 import {
   listJobs,
   SORT_COLUMNS,
@@ -48,6 +49,8 @@ function parseFilters(query: VercelRequest['query']): ListJobsFilters {
 
 /** GET /api/jobs — list jobs for the dashboard, with optional status/minScore/search/paging. */
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
+  if (!requireAuth(req, res)) return;
+
   if (req.method !== 'GET') {
     res.setHeader('Allow', 'GET');
     res.status(405).json({ error: 'Method Not Allowed' });

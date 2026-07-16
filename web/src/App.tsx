@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { fetchJobs, updateJobStatus } from './api.js';
+import { AuthError, clearToken, getToken, setToken } from './auth.js';
+import { Login } from './Login.js';
 import { STATUSES, type JobListItem, type JobStatus, type SortKey, type SortOrder } from './types.js';
 
 const COLUMNS: { key: SortKey; label: string }[] = [
@@ -33,6 +35,9 @@ function useDebounced<T>(value: T, ms: number): T {
 }
 
 export function App() {
+  const [token, setTokenState] = useState<string | null>(getToken());
+  const [authError, setAuthError] = useState<string | undefined>(undefined);
+
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<JobStatus | ''>('');
   const [minScore, setMinScore] = useState(0);
@@ -46,7 +51,14 @@ export function App() {
 
   const debouncedSearch = useDebounced(search, 300);
 
+  function logout(message?: string) {
+    clearToken();
+    setTokenState(null);
+    setAuthError(message);
+  }
+
   useEffect(() => {
+    if (!token) return;
     let cancelled = false;
     setLoading(true);
     setError(null);
@@ -57,7 +69,12 @@ export function App() {
         setTotal(data.total);
       })
       .catch((err: unknown) => {
-        if (!cancelled) setError(err instanceof Error ? err.message : String(err));
+        if (cancelled) return;
+        if (err instanceof AuthError) {
+          logout('That password was rejected.');
+        } else {
+          setError(err instanceof Error ? err.message : String(err));
+        }
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -65,7 +82,20 @@ export function App() {
     return () => {
       cancelled = true;
     };
-  }, [status, minScore, debouncedSearch, sort, order]);
+  }, [token, status, minScore, debouncedSearch, sort, order]);
+
+  if (!token) {
+    return (
+      <Login
+        error={authError}
+        onSubmit={(pw) => {
+          setToken(pw);
+          setTokenState(pw);
+          setAuthError(undefined);
+        }}
+      />
+    );
+  }
 
   function toggleSort(key: SortKey) {
     if (sort === key) {
@@ -84,7 +114,11 @@ export function App() {
       await updateJobStatus(job.id, next);
     } catch (err) {
       setJobs((list) => list.map((j) => (j.id === job.id ? { ...j, status: prev } : j)));
-      setError(err instanceof Error ? err.message : String(err));
+      if (err instanceof AuthError) {
+        logout('Your session expired — sign in again.');
+      } else {
+        setError(err instanceof Error ? err.message : String(err));
+      }
     }
   }
 
@@ -97,6 +131,9 @@ export function App() {
         <span className="count">
           {loading ? 'loading…' : `${total} match${total === 1 ? '' : 'es'}`}
         </span>
+        <button className="logout" onClick={() => logout()}>
+          Sign out
+        </button>
       </header>
 
       <div className="controls">

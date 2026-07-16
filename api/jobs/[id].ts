@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { requireAuth } from '../_auth.js';
 import { updateStatus, type JobStatus } from '../../src/repositories/jobsRepository.js';
 
 const VALID_STATUSES: JobStatus[] = ['new', 'interested', 'applied', 'rejected', 'interview'];
@@ -9,6 +10,8 @@ function first(value: string | string[] | undefined): string | undefined {
 
 /** PATCH /api/jobs/:id — update a job's status. Body: { status }. */
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
+  if (!requireAuth(req, res)) return;
+
   if (req.method !== 'PATCH') {
     res.setHeader('Allow', 'PATCH');
     res.status(405).json({ error: 'Method Not Allowed' });

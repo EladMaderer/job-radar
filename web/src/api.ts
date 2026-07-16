@@ -1,3 +1,4 @@
+import { authFetch } from './auth.js';
 import type { JobListItem, JobsResponse, JobStatus, SortKey, SortOrder } from './types.js';
 
 export interface JobQuery {
@@ -21,14 +22,14 @@ export async function fetchJobs(query: JobQuery): Promise<JobsResponse> {
   if (query.order) params.set('order', query.order);
   if (query.limit) params.set('limit', String(query.limit));
 
-  const res = await fetch(`/api/jobs?${params.toString()}`);
+  const res = await authFetch(`/api/jobs?${params.toString()}`);
   if (!res.ok) throw new Error(`Request failed: HTTP ${res.status}`);
   return (await res.json()) as JobsResponse;
 }
 
 /** PATCH /api/jobs/:id — change a job's status. Returns the updated job. */
 export async function updateJobStatus(id: number, status: JobStatus): Promise<JobListItem> {
-  const res = await fetch(`/api/jobs/${id}`, {
+  const res = await authFetch(`/api/jobs/${id}`, {
     method: 'PATCH',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ status }),
