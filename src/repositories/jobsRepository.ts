@@ -108,6 +108,101 @@ export async function markAlerted(id: number): Promise<void> {
   await pool.query('UPDATE jobs SET alerted_at = now() WHERE id = $1', [id]);
 }
 
+// --- Dashboard read layer (Phase 2) ---------------------------------------------------------
+
+export type JobStatus = 'new' | 'interested' | 'applied' | 'rejected' | 'interview';
+
+/** One job row as the dashboard needs it. */
+export interface JobListItem {
+  id: number;
+  source: string;
+  company: string;
+  title: string;
+  location: string | null;
+  url: string;
+  fitScore: number | null;
+  why: string | null;
+  status: JobStatus;
+  postedAt: Date | null;
+  firstSeenAt: Date;
+  lastSeenAt: Date;
+}
+
+export interface ListJobsFilters {
+  status?: JobStatus;
+  minScore?: number;
+  search?: string; // matches title or company, case-insensitive
+  limit?: number;
+  offset?: number;
+}
+
+const LIST_DEFAULT_LIMIT = 100;
+const LIST_MAX_LIMIT = 500;
+
+/**
+ * Read jobs for the dashboard, newest first, with optional filters. Parameterized throughout —
+ * no string interpolation into SQL. Returns rows plus the total matching count for pagination.
+ */
+export async function listJobs(
+  filters: ListJobsFilters = {},
+): Promise<{ jobs: JobListItem[]; total: number }> {
+  const where: string[] = [];
+  const params: unknown[] = [];
+
+  if (filters.status) {
+    params.push(filters.status);
+    where.push(`status = $${params.length}`);
+  }
+  if (typeof filters.minScore === 'number') {
+    params.push(filters.minScore);
+    where.push(`fit_score >= $${params.length}`);
+  }
+  if (filters.search && filters.search.trim().length > 0) {
+    params.push(`%${filters.search.trim()}%`);
+    where.push(`(title ILIKE $${params.length} OR company ILIKE $${params.length})`);
+  }
+
+  const whereSql = where.length > 0 ? `WHERE ${where.join(' AND ')}` : '';
+
+  const totalResult = await pool.query<{ count: string }>(
+    `SELECT count(*)::int AS count FROM jobs ${whereSql}`,
+    params,
+  );
+  const total = totalResult.rows[0] ? Number(totalResult.rows[0].count) : 0;
+
+  const limit = Math.min(filters.limit ?? LIST_DEFAULT_LIMIT, LIST_MAX_LIMIT);
+  const offset = Math.max(filters.offset ?? 0, 0);
+  const limitParam = params.length + 1;
+  const offsetParam = params.length + 2;
+
+  const { rows } = await pool.query(
+    `SELECT id, source, company, title, location, url, fit_score, why, status,
+            posted_at, first_seen_at, last_seen_at
+       FROM jobs
+       ${whereSql}
+       ORDER BY first_seen_at DESC
+       LIMIT $${limitParam} OFFSET $${offsetParam}`,
+    [...params, limit, offset],
+  );
+
+  const jobs: JobListItem[] = rows.map((r) => ({
+    id: r.id,
+    source: r.source,
+    company: r.company,
+    title: r.title,
+    location: r.location,
+    url: r.url,
+    fitScore: r.fit_score,
+    why: r.why,
+    status: r.status,
+    postedAt: r.posted_at,
+    firstSeenAt: r.first_seen_at,
+    lastSeenAt: r.last_seen_at,
+  }));
+
+  return { jobs, total };
+}
+
 /**
  * Refresh a job we've seen before: update the mutable fields and bump `last_seen_at`.
  * `first_seen_at` and `status` are deliberately left untouched.
