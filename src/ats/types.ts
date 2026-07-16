@@ -16,6 +16,13 @@ export interface Job {
   remote: boolean;
   /** ISO country code when the ATS provides one (Lever `country`, e.g. 'IL'); null otherwise. */
   countryCode: string | null;
+  /** Curated technology tags when the source provides them (TheirStack `technology_slugs`). */
+  technologySlugs?: string[];
+  /** Source-provided seniority when present (TheirStack: 'junior' | 'mid_level' | 'senior' | …). */
+  seniority?: string | null;
+  /** Hiring contact when the source exposes one (TheirStack `hiring_team`). */
+  recruiterName?: string | null;
+  recruiterLinkedIn?: string | null;
 }
 
 /** Fetches and normalizes all open jobs for one company on one ATS. */

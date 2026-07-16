@@ -22,6 +22,13 @@ const envSchema = z.object({
   ),
   // 'telegram' (default) or 'console' — lets the whole pipeline run offline.
   NOTIFIER: z.enum(['telegram', 'console']).default('telegram'),
+  // TheirStack (second, market-wide source). Key absent => poll:theirstack is a clear no-op.
+  // Free tier bills 1 API credit PER JOB RETURNED, so these knobs are a credit budget:
+  THEIRSTACK_API_KEY: z.string().optional(),
+  THEIRSTACK_MAX_AGE_DAYS: z.coerce.number().int().positive().default(14), // posted_at sanity cap
+  THEIRSTACK_LIMIT: z.coerce.number().int().min(1).max(25).default(25), // free plan caps pages at 25
+  THEIRSTACK_MAX_PAGES: z.coerce.number().int().min(1).max(5).default(4), // <=100 jobs/run worst case
+  THEIRSTACK_MONTHLY_BUDGET: z.coerce.number().int().positive().default(180), // jobs (~credits)/month
 });
 
 export type Config = z.infer<typeof envSchema>;

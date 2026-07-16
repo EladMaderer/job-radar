@@ -1,0 +1,46 @@
+name: theirstack
+
+# Market-wide second source on a SLOW cadence — TheirStack bills 1 API credit per job returned
+# (free tier: 200/month), so the fetch is incremental (discovered_at watermark) and this schedule
+# is deliberately sparse. The 30-min ATS poll workflow is separate and unaffected.
+on:
+  schedule:
+    # 5 runs/day, Sun–Fri (skips Saturday). Cadence itself is nearly free — credits are only spent
+    # on genuinely-new jobs thanks to the watermark; the in-code monthly budget guard is the cap.
+    - cron: '0 4,8,12,16,20 * * 0-5'
+  workflow_dispatch: {} # manual trigger for testing / the first baseline seed
+
+concurrency:
+  group: theirstack
+  cancel-in-progress: false
+
+jobs:
+  theirstack:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Job-level env: config validation loads the full schema on import, so every step that runs
+    # our code (migrate as well as poll) needs all vars, not just the ones it appears to use.
+    env:
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      SCORE_THRESHOLD: ${{ secrets.SCORE_THRESHOLD }}
+      SCORER: ${{ vars.SCORER }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      # Missing key => the run is a clear no-op (exit 0), never a failure.
+      THEIRSTACK_API_KEY: ${{ secrets.THEIRSTACK_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Apply migrations
+        run: npm run migrate
+
+      - name: Run one TheirStack cycle
+        run: npm run poll:theirstack

@@ -119,6 +119,58 @@ test('every keyword matches itself (catches punctuation keywords that could neve
   }
 });
 
+// --- Technology-slug channel (TheirStack) ----------------------------------------------------
+
+test('slug channel: react+nodejs slugs fire the sweet spot at full weight', async () => {
+  const r = await score({
+    title: 'Software Developer', // generic title — slugs carry the signal
+    location: 'Tel Aviv, Israel',
+    description: 'Join our product team.',
+    technologySlugs: ['react', 'nodejs'],
+  });
+  assert.match(r.why, /frontend \(tech tags\)/);
+  assert.match(r.why, /sweet spot/);
+  assert.ok(r.score >= 75, `expected sweet-spot score, got ${r.score}`);
+});
+
+test('slug channel: python tag alongside react does NOT trigger backend-primary', async () => {
+  const r = await score({
+    title: 'Full Stack Developer',
+    location: 'Tel Aviv, Israel',
+    description: 'Our stack.',
+    technologySlugs: ['react', 'nodejs', 'python'],
+  });
+  assert.doesNotMatch(r.why, /backend-primary/);
+});
+
+test('slug channel: backend-only slugs are penalized', async () => {
+  const r = await score({
+    title: 'Full Stack Developer',
+    location: 'Tel Aviv, Israel',
+    description: 'Our stack.',
+    technologySlugs: ['golang', 'python'],
+  });
+  assert.match(r.why, /backend-primary \(tech tags\)/);
+});
+
+test('source seniority: senior boosts, junior disqualifies', async () => {
+  const senior = await score({
+    title: 'Frontend Developer',
+    location: 'Tel Aviv, Israel',
+    technologySlugs: ['react'],
+    seniority: 'senior',
+  });
+  assert.match(senior.why, /senior \(source\)/);
+  const junior = await score({
+    title: 'Frontend Developer',
+    location: 'Tel Aviv, Israel',
+    technologySlugs: ['react'],
+    seniority: 'junior',
+  });
+  assert.match(junior.why, /junior \(source\)/);
+  assert.ok(junior.score < senior.score);
+});
+
 test('punctuation keywords match real usage; boundaries reject substrings', () => {
   for (const [text, kw] of [
     ['strong C++ and Rust', 'c++'],

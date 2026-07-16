@@ -10,10 +10,59 @@ import type { JobAlert } from '../notify/types.js';
  * (status is user-owned in the Phase 2 dashboard); rows are never deleted.
  */
 
-/** Total rows — used to detect the very first run (empty table => baseline-seed). */
-export async function countJobs(): Promise<number> {
-  const { rows } = await pool.query<{ count: string }>('SELECT count(*)::int AS count FROM jobs');
-  return rows[0] ? Number(rows[0].count) : 0;
+/**
+ * Sources that already have rows. A source NOT in this set is on its first-ever run and
+ * baseline-seeds silently (stored + marked alerted, no Telegram) — per-source, so adding a new
+ * source (e.g. TheirStack) to an already-populated DB doesn't fire alerts for pre-existing jobs.
+ */
+export async function sourcesWithRows(): Promise<Set<string>> {
+  const { rows } = await pool.query<{ source: string }>('SELECT DISTINCT source FROM jobs');
+  return new Set(rows.map((r) => r.source));
+}
+
+/** Rows first seen for `source` since `since` — the TheirStack monthly credit-budget meter. */
+export async function countJobsSince(source: string, since: Date): Promise<number> {
+  const { rows } = await pool.query<{ count: number }>(
+    'SELECT count(*)::int AS count FROM jobs WHERE source = $1 AND first_seen_at >= $2',
+    [source, since],
+  );
+  return rows[0]?.count ?? 0;
+}
+
+/**
+ * Incremental-fetch watermark for a source: when we last stored anything from it. Passed back to
+ * TheirStack as discovered_at_gte (minus an overlap) so each job is returned — and billed — once.
+ */
+export async function latestFirstSeen(source: string): Promise<Date | null> {
+  const { rows } = await pool.query<{ max: Date | null }>(
+    'SELECT max(first_seen_at) AS max FROM jobs WHERE source = $1',
+    [source],
+  );
+  return rows[0]?.max ?? null;
+}
+
+/**
+ * Fuzzy cross-source duplicate check: does another source already have this company+title?
+ * Safety net behind the server-side company exclusion — catches name variants so the same role
+ * arriving via TheirStack after the ATS poller doesn't ping twice.
+ */
+export async function existsSimilarJob(
+  company: string,
+  title: string,
+  excludeSource: string,
+): Promise<boolean> {
+  const { rows } = await pool.query<{ found: boolean }>(
+    `SELECT EXISTS(
+       SELECT 1 FROM jobs
+        WHERE source <> $1
+          AND lower(btrim(title)) = lower(btrim($2))
+          AND (lower(btrim(company)) = lower(btrim($3))
+               OR lower(btrim(company)) LIKE lower(btrim($3)) || '%'
+               OR lower(btrim($3)) LIKE lower(btrim(company)) || '%')
+     ) AS found`,
+    [excludeSource, title, company],
+  );
+  return rows[0]?.found ?? false;
 }
 
 /** Which of these external ids already exist for a source — the dedup check. */
@@ -45,8 +94,10 @@ export async function insertJob(
 ): Promise<void> {
   await pool.query(
     `INSERT INTO jobs
-       (source, external_id, company, title, location, url, description, posted_at, fit_score, why, alerted_at, relevant)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, CASE WHEN $11::boolean THEN now() ELSE NULL END, $12)
+       (source, external_id, company, title, location, url, description, posted_at, fit_score, why,
+        alerted_at, relevant, recruiter_name, recruiter_linkedin, seniority, technology_slugs)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
+             CASE WHEN $11::boolean THEN now() ELSE NULL END, $12, $13, $14, $15, $16)
      ON CONFLICT (source, external_id) DO NOTHING`,
     [
       job.source,
@@ -61,6 +112,10 @@ export async function insertJob(
       why,
       alerted,
       relevant,
+      job.recruiterName ?? null,
+      job.recruiterLinkedIn ?? null,
+      job.seniority ?? null,
+      job.technologySlugs && job.technologySlugs.length > 0 ? job.technologySlugs : null,
     ],
   );
 }
@@ -79,8 +134,10 @@ export async function findPendingAlerts(threshold: number, limit: number): Promi
     url: string;
     fit_score: number;
     why: string;
+    recruiter_name: string | null;
+    recruiter_linkedin: string | null;
   }>(
-    `SELECT id, company, title, location, url, fit_score, why
+    `SELECT id, company, title, location, url, fit_score, why, recruiter_name, recruiter_linkedin
        FROM jobs
       WHERE alerted_at IS NULL AND relevant = true AND fit_score >= $1
       ORDER BY fit_score DESC
@@ -95,6 +152,8 @@ export async function findPendingAlerts(threshold: number, limit: number): Promi
     url: r.url,
     score: r.fit_score,
     why: r.why,
+    recruiterName: r.recruiter_name,
+    recruiterLinkedIn: r.recruiter_linkedin,
   }));
 }
 

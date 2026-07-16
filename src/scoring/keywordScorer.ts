@@ -2,10 +2,13 @@ import type { Job } from '../ats/types.js';
 import {
   AI_KEYWORDS,
   BACKEND_PRIMARY_KEYWORDS,
+  BACKEND_PRIMARY_SLUGS,
   BACKEND_SIGNAL_KEYWORDS,
+  BACKEND_SIGNAL_SLUGS,
   DESCRIPTION_WEIGHT_FACTOR,
   FRONTEND_KEYWORDS,
   FRONTEND_ONLY_KEYWORDS,
+  FRONTEND_SLUGS,
   NEGATIVE_KEYWORDS,
   SCORE_MAX,
   SCORE_MIN,
@@ -52,30 +55,50 @@ function scoreSync(job: Job): ScoreResult {
   const reasons: string[] = [];
   let score = 0;
 
-  // Frontend / full-stack base signal.
+  // Curated technology slugs (TheirStack) — structured metadata beats regexing prose, so when
+  // present the slug channel supplies signals at title-grade confidence.
+  const slugs = (job.technologySlugs ?? []).map((s) => s.toLowerCase());
+  const slugFrontend = slugs.some((s) => FRONTEND_SLUGS.includes(s));
+  const slugBackendSignal = slugs.some((s) => BACKEND_SIGNAL_SLUGS.includes(s));
+  const slugBackendPrimary = slugs.some((s) => BACKEND_PRIMARY_SLUGS.includes(s));
+
+  // Frontend / full-stack base signal (text channel, with slug channel as title-grade evidence).
   const frontendWhere = locate(title, description, FRONTEND_KEYWORDS);
-  const frontendPts = weightFor(frontendWhere, WEIGHTS.frontend);
+  const frontendPts = slugFrontend ? WEIGHTS.frontend : weightFor(frontendWhere, WEIGHTS.frontend);
   if (frontendPts) {
     score += frontendPts;
-    reasons.push(`frontend/full-stack (${frontendWhere}) +${frontendPts}`);
+    reasons.push(
+      slugFrontend
+        ? `frontend (tech tags) +${frontendPts}`
+        : `frontend/full-stack (${frontendWhere}) +${frontendPts}`,
+    );
   }
 
   // Sweet spot: frontend-SPECIFIC signal AND backend signal anywhere => my ideal profile.
   const hasFrontendOnly =
-    matchesAny(title, FRONTEND_ONLY_KEYWORDS) || matchesAny(description, FRONTEND_ONLY_KEYWORDS);
+    slugFrontend ||
+    matchesAny(title, FRONTEND_ONLY_KEYWORDS) ||
+    matchesAny(description, FRONTEND_ONLY_KEYWORDS);
   const hasBackendSignal =
-    matchesAny(title, BACKEND_SIGNAL_KEYWORDS) || matchesAny(description, BACKEND_SIGNAL_KEYWORDS);
+    slugBackendSignal ||
+    matchesAny(title, BACKEND_SIGNAL_KEYWORDS) ||
+    matchesAny(description, BACKEND_SIGNAL_KEYWORDS);
   if (hasFrontendOnly && hasBackendSignal) {
     score += WEIGHTS.fullStackSweetSpot;
     reasons.push(`FE-oriented full-stack sweet spot +${WEIGHTS.fullStackSweetSpot}`);
   }
 
-  // Seniority.
-  const seniorWhere = locate(title, description, SENIOR_KEYWORDS);
-  const seniorPts = weightFor(seniorWhere, WEIGHTS.senior);
-  if (seniorPts) {
-    score += seniorPts;
-    reasons.push(`senior (${seniorWhere}) +${seniorPts}`);
+  // Seniority: source-provided level first (structured), then text.
+  if (job.seniority === 'senior') {
+    score += WEIGHTS.senior;
+    reasons.push(`senior (source) +${WEIGHTS.senior}`);
+  } else {
+    const seniorWhere = locate(title, description, SENIOR_KEYWORDS);
+    const seniorPts = weightFor(seniorWhere, WEIGHTS.senior);
+    if (seniorPts) {
+      score += seniorPts;
+      reasons.push(`senior (${seniorWhere}) +${seniorPts}`);
+    }
   }
 
   // AI / AI-tooling.
@@ -97,19 +120,35 @@ function scoreSync(job: Job): ScoreResult {
   }
 
   // Backend-PRIMARY penalty — applies even when the title says "full stack".
-  const backendWhere = locate(title, description, BACKEND_PRIMARY_KEYWORDS);
-  const backendPts = weightFor(backendWhere, WEIGHTS.backendPrimaryPenalty);
-  if (backendPts) {
-    score += backendPts;
-    reasons.push(`backend-primary (${backendWhere}) ${backendPts}`);
+  // When curated slugs exist they DECIDE this signal: penalize only if backend slugs appear with
+  // no frontend slug (a `python` tag alongside `react`+`nodejs` is normal for FE-oriented
+  // full-stack and must not sink the job). Text matching is the fallback for slug-less jobs.
+  if (slugs.length > 0) {
+    if (slugBackendPrimary && !slugFrontend) {
+      score += WEIGHTS.backendPrimaryPenalty;
+      reasons.push(`backend-primary (tech tags) ${WEIGHTS.backendPrimaryPenalty}`);
+    }
+  } else {
+    const backendWhere = locate(title, description, BACKEND_PRIMARY_KEYWORDS);
+    const backendPts = weightFor(backendWhere, WEIGHTS.backendPrimaryPenalty);
+    if (backendPts) {
+      score += backendPts;
+      reasons.push(`backend-primary (${backendWhere}) ${backendPts}`);
+    }
   }
 
-  // Other disqualifiers (DevOps/SRE/data-eng/Angular-only/junior/intern).
-  const negativeWhere = locate(title, description, NEGATIVE_KEYWORDS);
-  const negativePts = weightFor(negativeWhere, WEIGHTS.backendPrimaryPenalty);
-  if (negativePts) {
-    score += negativePts;
-    reasons.push(`disqualifier (${negativeWhere}) ${negativePts}`);
+  // Other disqualifiers (DevOps/SRE/data-eng/Angular-only/junior/intern). A source-provided
+  // 'junior' seniority is the same disqualifier, structured.
+  if (job.seniority === 'junior') {
+    score += WEIGHTS.backendPrimaryPenalty;
+    reasons.push(`junior (source) ${WEIGHTS.backendPrimaryPenalty}`);
+  } else {
+    const negativeWhere = locate(title, description, NEGATIVE_KEYWORDS);
+    const negativePts = weightFor(negativeWhere, WEIGHTS.backendPrimaryPenalty);
+    if (negativePts) {
+      score += negativePts;
+      reasons.push(`disqualifier (${negativeWhere}) ${negativePts}`);
+    }
   }
 
   return {

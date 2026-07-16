@@ -7,6 +7,9 @@ export interface JobAlert {
   url: string;
   score: number;
   why: string;
+  /** Hiring contact when the source provides one (TheirStack); null for ATS-board jobs. */
+  recruiterName?: string | null;
+  recruiterLinkedIn?: string | null;
 }
 
 /**

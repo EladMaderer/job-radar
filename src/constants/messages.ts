@@ -10,10 +10,14 @@ export const APPLY_BUTTON_LABEL = 'Apply';
 
 /** The alert body (no button — the button is attached as reply_markup by the Telegram client). */
 export function formatAlert(alert: JobAlert): string {
-  return [
+  const lines = [
     `🟢 New match — ${alert.score}/100`,
     alert.title,
     `${alert.company} · ${alert.location ?? 'Location N/A'}`,
     `Why: ${alert.why}`,
-  ].join('\n');
+  ];
+  if (alert.recruiterLinkedIn) {
+    lines.push(`👤 ${alert.recruiterName ?? 'Hiring contact'} — ${alert.recruiterLinkedIn}`);
+  }
+  return lines.join('\n');
 }

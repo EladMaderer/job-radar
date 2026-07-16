@@ -1,4 +1,5 @@
 import type { Job } from '../ats/types.js';
+import { FRONTEND_SLUGS } from '../constants/scoring.js';
 import { matchesAny } from './match.js';
 
 /**
@@ -36,6 +37,9 @@ const FRONTEND_SIGNAL = [
 ];
 
 export function hasFrontendSignal(job: Job): boolean {
+  // Curated tech tags count as signal — a slug-tagged React job must reach the scorer even if
+  // its text never says "react".
+  if (job.technologySlugs?.some((s) => FRONTEND_SLUGS.includes(s.toLowerCase()))) return true;
   const text = `${job.title} ${job.description ?? ''}`;
   return matchesAny(text, FRONTEND_SIGNAL);
 }

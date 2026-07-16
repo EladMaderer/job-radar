@@ -4,84 +4,87 @@ import { MAX_ALERTS_PER_CYCLE, TELEGRAM_SEND_GAP_MS } from '../constants/message
 import { getNotifier } from '../notify/index.js';
 import { adapterFor, COMPANIES } from '../registry/companies.js';
 import {
-  countJobs,
+  countJobsSince,
   countPendingAlerts,
+  existsSimilarJob,
   findExistingExternalIds,
   findPendingAlerts,
   insertJob,
+  latestFirstSeen,
   markAlerted,
+  sourcesWithRows,
   updateJobFields,
 } from '../repositories/jobsRepository.js';
 import { SCORE_CONCURRENCY } from '../constants/scoring.js';
 import { mapWithConcurrency } from '../lib/concurrency.js';
 import { getScorer } from '../scoring/getScorer.js';
 import { classifyLocation } from '../scoring/location.js';
+import { fetchTheirStackJobs, THEIRSTACK_SOURCE } from '../sources/theirstack.js';
 import type { Scorer } from '../scoring/types.js';
 
 export interface PollSummary {
-  fetched: number; // jobs returned by all boards
+  fetched: number; // jobs returned by all boards / the source
   candidates: number; // passed the base location filter
   inserted: number; // newly stored this cycle
   updated: number; // already-seen rows refreshed
   dropped: number; // new jobs judged irrelevant — stored lean as dedup memory, hidden from dashboard
+  suppressed: number; // cross-source duplicates — stored but never alerted
   alerted: number; // alerts actually sent (and marked) this cycle
   failedAlerts: number; // sends that failed — stay pending, retried next cycle
-  baseline: boolean; // true on the first-ever run (seed silently)
+  baselineSeeded: string[]; // sources that baseline-seeded silently this cycle
   failedCompanies: string[];
 }
 
-const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
-
-/**
- * One full poll cycle. Stateless: "new" is decided against the DB, so this is correct whether
- * run once (GitHub Actions) or on a loop.
- *
- * First-ever run (empty table) baseline-seeds: every current role is stored but marked alerted,
- * so alerts only ever mean "appeared since we started watching."
- *
- * Alerting is decoupled from storage: a new job is stored immediately with alerted_at=NULL, and
- * only marked alerted once its message actually sends. A failed send is logged and left pending —
- * never fatal, never lost — and retried on the next cycle.
- */
-export async function runPollCycle(scorer: Scorer = getScorer()): Promise<PollSummary> {
-  const baseline = (await countJobs()) === 0;
-  const summary: PollSummary = {
+function emptySummary(): PollSummary {
+  return {
     fetched: 0,
     candidates: 0,
     inserted: 0,
     updated: 0,
     dropped: 0,
+    suppressed: 0,
     alerted: 0,
     failedAlerts: 0,
-    baseline,
+    baselineSeeded: [],
     failedCompanies: [],
   };
+}
 
-  // Pass 1: fetch each board, refresh already-seen jobs, and collect the genuinely-new ones.
+const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Shared downstream for every source: location-filter → dedup against the DB → score new jobs →
+ * store (always, including irrelevant ones — the scored-once guarantee) → count.
+ *
+ * Baseline is PER-SOURCE: a job whose source has no rows yet is stored pre-marked alerted (silent
+ * seed), so adding a new source to an already-populated DB never fires alerts for its pre-existing
+ * jobs. `suppressAlert(job)` lets a caller silence specific jobs (cross-source duplicates).
+ */
+async function processJobs(
+  jobs: Job[],
+  scorer: Scorer,
+  summary: PollSummary,
+  knownSources: Set<string>,
+  suppressAlert?: (job: Job) => Promise<boolean>,
+): Promise<void> {
+  const candidates = jobs.filter((job) => classifyLocation(job).keep);
+  summary.candidates += candidates.length;
+
+  // Dedup per source (a batch can span sources in principle; group to keep the query correct).
+  const bySource = new Map<string, Job[]>();
+  for (const job of candidates) {
+    const list = bySource.get(job.source) ?? [];
+    list.push(job);
+    bySource.set(job.source, list);
+  }
+
   const newJobs: Job[] = [];
-  for (const company of COMPANIES) {
-    let candidates: Job[];
-    try {
-      const adapter = adapterFor(company);
-      const raw = await adapter(company.slug, company.name);
-      summary.fetched += raw.length;
-      // Base location filter first; scoring (an LLM call) runs only on jobs we might store.
-      candidates = raw.filter((job) => classifyLocation(job).keep);
-    } catch (err) {
-      // One bad board must never kill the cycle.
-      summary.failedCompanies.push(company.name);
-      console.error(`[poll] ${company.name} failed: ${(err as Error).message}`);
-      continue;
-    }
-
-    summary.candidates += candidates.length;
-
+  for (const [source, sourceJobs] of bySource) {
     const existing = await findExistingExternalIds(
-      company.ats,
-      candidates.map((job) => job.externalId),
+      source,
+      sourceJobs.map((job) => job.externalId),
     );
-
-    for (const job of candidates) {
+    for (const job of sourceJobs) {
       if (existing.has(job.externalId)) {
         // Seen before: refresh mutable fields only. Never re-score (would re-spend LLM tokens).
         await updateJobFields(job);
@@ -90,31 +93,107 @@ export async function runPollCycle(scorer: Scorer = getScorer()): Promise<PollSu
         newJobs.push(job);
       }
     }
+    if (!knownSources.has(source) && !summary.baselineSeeded.includes(source)) {
+      summary.baselineSeeded.push(source);
+    }
   }
 
-  // Pass 2: score new jobs in parallel (each may be an LLM round-trip). ALWAYS store the result —
+  // Score new jobs in parallel (each may be an LLM round-trip). ALWAYS store the result —
   // including irrelevant jobs (relevant=false) — so a job is scored exactly once and never
-  // re-billed on a later cycle. Baseline seed marks everything alerted (silent); otherwise leave
-  // pending for alerting (only relevant, above-threshold jobs are actually alerted).
+  // re-billed on a later cycle.
   await mapWithConcurrency(newJobs, SCORE_CONCURRENCY, async (job) => {
     const { score, why, relevant } = await scorer.score(job);
-    await insertJob(job, score, why, baseline, relevant);
+    const baseline = !knownSources.has(job.source);
+    let silent = baseline;
+    let finalWhy = why;
+    if (!silent && suppressAlert && (await suppressAlert(job))) {
+      silent = true;
+      finalWhy = `${why} [alert suppressed: same role already tracked via another source]`;
+      summary.suppressed += 1;
+    }
+    await insertJob(job, score, finalWhy, silent, relevant);
     if (relevant) summary.inserted += 1;
     else summary.dropped += 1;
   });
+}
 
-  if (!baseline) {
-    await sendPendingAlerts(summary);
+/**
+ * One full ATS poll cycle over the company registry. Stateless: "new" is decided against the DB,
+ * so this is correct whether run once (GitHub Actions) or on a loop.
+ *
+ * Alerting is decoupled from storage: a new job is stored immediately with alerted_at=NULL, and
+ * only marked alerted once its message actually sends. A failed send is logged and left pending —
+ * never fatal, never lost — and retried on the next cycle.
+ */
+export async function runPollCycle(scorer: Scorer = getScorer()): Promise<PollSummary> {
+  const knownSources = await sourcesWithRows();
+  const summary = emptySummary();
+
+  for (const company of COMPANIES) {
+    let raw: Job[];
+    try {
+      const adapter = adapterFor(company);
+      raw = await adapter(company.slug, company.name);
+    } catch (err) {
+      // One bad board must never kill the cycle.
+      summary.failedCompanies.push(company.name);
+      console.error(`[poll] ${company.name} failed: ${(err as Error).message}`);
+      continue;
+    }
+    summary.fetched += raw.length;
+    await processJobs(raw, scorer, summary, knownSources);
   }
 
-  logSummary(summary);
+  await sendPendingAlerts(summary);
+  logSummary('poll', summary);
+  return summary;
+}
+
+/**
+ * One TheirStack cycle (separate slow cadence — every returned job costs an API credit).
+ * Incremental: discovered_at_gte is derived from when we last stored a theirstack row, so each
+ * job is fetched and billed ~once. A hard monthly budget guard stops the burn if filters ever
+ * misbehave. Cross-source duplicates (same role already tracked via an ATS board under a name
+ * variant the server-side exclusion missed) are stored but never alerted.
+ */
+export async function runTheirStackCycle(scorer: Scorer = getScorer()): Promise<PollSummary> {
+  const summary = emptySummary();
+
+  const monthStart = new Date();
+  monthStart.setUTCDate(1);
+  monthStart.setUTCHours(0, 0, 0, 0);
+  const usedThisMonth = await countJobsSince(THEIRSTACK_SOURCE, monthStart);
+  if (usedThisMonth >= config.THEIRSTACK_MONTHLY_BUDGET) {
+    console.warn(
+      `[theirstack] monthly budget reached (${usedThisMonth}/${config.THEIRSTACK_MONTHLY_BUDGET} ` +
+        'jobs stored this month) — skipping run. Resets on the 1st.',
+    );
+    logSummary('theirstack', summary);
+    return summary;
+  }
+  console.log(
+    `[theirstack] budget: ${usedThisMonth}/${config.THEIRSTACK_MONTHLY_BUDGET} jobs used this month`,
+  );
+
+  const knownSources = await sourcesWithRows();
+  const watermark = await latestFirstSeen(THEIRSTACK_SOURCE);
+  const jobs = await fetchTheirStackJobs(watermark);
+  summary.fetched += jobs.length;
+
+  await processJobs(jobs, scorer, summary, knownSources, (job) =>
+    existsSimilarJob(job.company, job.title, THEIRSTACK_SOURCE),
+  );
+
+  await sendPendingAlerts(summary);
+  logSummary('theirstack', summary);
   return summary;
 }
 
 /**
  * Send every job still owed an alert (fresh + any that failed on a prior cycle), highest score
  * first, capped per cycle. Each job is marked alerted only after its send succeeds; failures are
- * counted and left pending for the next run.
+ * counted and left pending for the next run. Baseline-seeded rows are already marked alerted, so
+ * running this unconditionally is safe in every cycle.
  */
 async function sendPendingAlerts(summary: PollSummary): Promise<void> {
   const notifier = getNotifier();
@@ -141,14 +220,15 @@ async function sendPendingAlerts(summary: PollSummary): Promise<void> {
   }
 }
 
-function logSummary(s: PollSummary): void {
-  const mode = s.baseline ? ' [BASELINE SEED — no alerts]' : '';
+function logSummary(tag: string, s: PollSummary): void {
+  const seeded =
+    s.baselineSeeded.length > 0 ? ` [BASELINE SEED (${s.baselineSeeded.join(', ')}) — silent]` : '';
   console.log(
-    `[poll] fetched=${s.fetched} candidates=${s.candidates} inserted=${s.inserted} ` +
-      `updated=${s.updated} dropped=${s.dropped} alerted=${s.alerted} ` +
-      `failedAlerts=${s.failedAlerts}${mode}`,
+    `[${tag}] fetched=${s.fetched} candidates=${s.candidates} inserted=${s.inserted} ` +
+      `updated=${s.updated} dropped=${s.dropped} suppressed=${s.suppressed} alerted=${s.alerted} ` +
+      `failedAlerts=${s.failedAlerts}${seeded}`,
   );
   if (s.failedCompanies.length > 0) {
-    console.warn(`[poll] failed boards: ${s.failedCompanies.join(', ')}`);
+    console.warn(`[${tag}] failed boards: ${s.failedCompanies.join(', ')}`);
   }
 }

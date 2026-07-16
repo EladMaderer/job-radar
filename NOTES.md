@@ -185,6 +185,86 @@ language so it doubles as an interview script.
 - **Trade-off:** One extra column and a per-cycle "pending" query (indexed, trivial). Baseline
   seed and pre-existing rows are backfilled `alerted_at = now()` so they never ping retroactively.
 
+## TheirStack: credits are per JOB RETURNED — design around incremental fetch
+
+- **Decision:** Add TheirStack as a second, market-wide source with an incremental fetch: each run
+  passes `discovered_at_gte` derived from our own watermark (latest `first_seen_at` for the
+  source, minus 1h overlap), so each job is returned — and billed — roughly once. First run (no
+  watermark) uses a short 2-day posted-age window as a silent baseline seed.
+- **Why:** The original plan assumed credits were per REQUEST (130 requests/month < 200 credits).
+  TheirStack actually bills **1 API credit per job returned** (verified in their docs) — a single
+  `limit:50` call can burn a quarter of the free tier, and re-querying a time window pays for the
+  same jobs repeatedly. Incremental fetch makes cadence nearly free; only genuinely-new jobs cost.
+- **Trade-off:** If the per-run page cap is ever hit, jobs beyond it in that window can be missed
+  permanently (the watermark advances past them) — with the tight filters this needs >100 new
+  matching IL jobs in 4h, which the budget guard would be tripping on anyway.
+
+## TheirStack: server-side seniority filter is the budget lever
+
+- **Decision:** Query with `job_seniority_or: ['senior','staff','c_level']`, titles without
+  "Software Engineer", `job_country_code_or: ['IL']`, and `company_name_not` = our registry
+  companies. Hard monthly guard: skip runs after 180 stored TheirStack jobs/month.
+- **Why:** Measured with free blurred probes: all seniorities ≈ 136 matching jobs/14d
+  (~300–450/month — double the 200-credit free tier); senior/staff ≈ 52/14d (~110/month, inside
+  budget). Mid-level is the excluded bulk — acceptable for a senior 10+ yrs profile whose scoring
+  disqualifies junior roles anyway. Excluding registry companies means never paying for jobs the
+  free ATS poller already catches.
+- **Trade-off:** Mid-level and unclassified-seniority TheirStack roles are missed (the ATS poller
+  still covers every seniority at its ~105 companies for free). If TheirStack misclassifies a
+  senior role, we miss it silently.
+
+## TheirStack: company credits & blur mode (the prompt's investigation, answered)
+
+- **Decision:** No special handling for company credits; use `blur_company_data: true` only as a
+  free sizing probe, never for ingestion.
+- **Why:** Verified in TheirStack's docs and live headers: the 50 monthly company credits are
+  consumed by the separate company-search/technographics endpoints (3 credits each) — the
+  `company_object` embedded in job results does NOT consume them. Blur mode is free but blurs
+  company name, job URL AND description — useless for real ingestion, perfect for zero-cost query
+  sizing (that's how the seniority numbers above were measured). Responses expose request-rate
+  headers only (4/s, 10/min, 50/h, 400/day), no credit balance — our per-run "jobs returned ≈
+  credits" log plus the monthly DB count is the burn meter.
+- **Trade-off:** Credit balance isn't directly observable via API; the DB-derived meter undercounts
+  by the overlap re-fetches (~1h window), which is noise at this scale.
+
+## Per-source baseline (replaces the global empty-table check)
+
+- **Decision:** Baseline-seeding is now per-source: a job whose `source` has no rows yet is stored
+  pre-marked alerted (silent). `sendPendingAlerts` runs unconditionally in every cycle.
+- **Why:** The old global check (`countJobs() === 0`) meant a NEW source added to an
+  already-populated DB would alert on all its pre-existing jobs — TheirStack's first run would
+  have fired ~20 stale Telegram pings. Per-source, any future source gets the same silent
+  first-seed behavior automatically.
+- **Trade-off:** None for existing behavior (all current sources have rows, so the ATS path is
+  unchanged). A deliberately re-baselined single source (delete its rows) re-seeds silently, which
+  is the desired semantics.
+
+## Cross-source duplicate alerts: exclude server-side, suppress fuzzily as backup
+
+- **Decision:** Registry companies are excluded from TheirStack queries (`company_name_not`), and
+  a residual fuzzy check (normalized company+title match against other sources) stores — but never
+  alerts — duplicates that slip through under company-name variants.
+- **Why:** TheirStack indexes Greenhouse/LinkedIn, so the same role can arrive via both pipelines;
+  without this the user gets two Telegram pings hours apart for one job. Server-side exclusion
+  also saves credits (never pay for jobs the ATS poller fetches free).
+- **Trade-off:** The fuzzy match (prefix-tolerant company equality + exact title) can rarely
+  suppress a legitimately different job with an identical title at a similarly-named company —
+  the row is still stored and visible in the dashboard, only the ping is suppressed.
+
+## Slug channel in the keyword scorer
+
+- **Decision:** When a job carries curated `technology_slugs` (TheirStack), they drive the
+  frontend/sweet-spot/backend-primary signals at title-grade confidence; text matching remains the
+  fallback for slug-less jobs and for what slugs can't answer (AI, seniority-in-title). Slug rule
+  for penalties: backend-primary fires only when backend slugs appear WITHOUT any frontend slug.
+  Source-provided seniority maps directly: 'senior' → bonus, 'junior' → disqualifier.
+- **Why:** Structured tags beat regexing prose. But a `python` tag alongside `react`+`nodejs` is
+  normal for FE-oriented full-stack — penalizing it would sink exactly the sweet-spot roles the
+  scorer exists to surface.
+- **Trade-off:** When slugs exist they fully decide backend-primary, so a slug-tagged job whose
+  description screams backend but whose tags include react won't be penalized — acceptable, since
+  tags come from TheirStack's extraction of the same description.
+
 ## Auto-discovery: probe the whole ATS universe, not a hand-typed list
 
 - **Decision:** A weekly `discover` job fetches the public universe of Greenhouse/Lever board slugs

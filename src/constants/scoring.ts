@@ -133,6 +133,29 @@ export const BACKEND_PRIMARY_KEYWORDS = [
   'php',
 ];
 
+/**
+ * Curated technology-slug sets (TheirStack `technology_slugs`). Slugs are structured metadata —
+ * when present they beat regexing prose, so the scorer consults them first.
+ */
+export const FRONTEND_SLUGS = ['react', 'react-native', 'reactjs', 'nextjs', 'next-js', 'vue'];
+export const BACKEND_SIGNAL_SLUGS = ['nodejs', 'node-js', 'node', 'express'];
+export const BACKEND_PRIMARY_SLUGS = [
+  'golang',
+  'go',
+  'java',
+  'python',
+  'c-sharp',
+  'csharp',
+  'dotnet',
+  'c-plus-plus',
+  'cpp',
+  'rust',
+  'scala',
+  'kotlin',
+  'ruby',
+  'php',
+];
+
 /** Other disqualifying signals => penalty. */
 export const NEGATIVE_KEYWORDS = [
   'devops',
