@@ -6,7 +6,9 @@
     "moduleResolution": "bundler",
     "composite": true,
     "strict": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "outDir": "./node_modules/.tmp/tsnode",
+    "tsBuildInfoFile": "./node_modules/.tmp/tsnode/tsconfig.node.tsbuildinfo"
   },
   "include": ["vite.config.ts"]
 }
