@@ -33,6 +33,11 @@ function parseFilters(query: VercelRequest['query']): ListJobsFilters {
   const search = first(query.search);
   if (search) filters.search = search;
 
+  const maxAgeDays = first(query.maxAgeDays);
+  if (maxAgeDays !== undefined && maxAgeDays !== '' && !Number.isNaN(Number(maxAgeDays))) {
+    filters.maxAgeDays = Number(maxAgeDays);
+  }
+
   const sort = first(query.sort);
   if (sort && (VALID_SORTS as string[]).includes(sort)) filters.sort = sort as SortKey;
 

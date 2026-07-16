@@ -13,6 +13,15 @@ import {
 
 const PAGE_SIZE = 10;
 
+// "Published within" options. 0 = all time (no age filter). Default hides stale evergreen reqs.
+const MAX_AGE_OPTIONS: { value: number; label: string }[] = [
+  { value: 30, label: 'last 30 days' },
+  { value: 90, label: 'last 3 months' },
+  { value: 180, label: 'last 6 months' },
+  { value: 0, label: 'all time' },
+];
+const DEFAULT_MAX_AGE_DAYS = 90;
+
 // A header is sortable when it has a `key` (a whitelisted SortKey); Source has no server sort.
 type Column = { label: string; key?: SortKey };
 const COLUMNS: Column[] = [
@@ -78,7 +87,8 @@ export function App() {
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<JobStatus | ''>('');
   const [minScore, setMinScore] = useState(0);
-  const [sort, setSort] = useState<SortKey>('firstSeen');
+  const [maxAgeDays, setMaxAgeDays] = useState(DEFAULT_MAX_AGE_DAYS);
+  const [sort, setSort] = useState<SortKey>('posted');
   const [order, setOrder] = useState<SortOrder>('desc');
 
   const [jobs, setJobs] = useState<JobListItem[]>([]);
@@ -121,6 +131,7 @@ export function App() {
       status,
       minScore,
       search: debouncedSearch,
+      maxAgeDays,
       sort,
       order,
       limit: PAGE_SIZE,
@@ -144,7 +155,7 @@ export function App() {
       requestId.current += 1;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, status, minScore, debouncedSearch, sort, order]);
+  }, [token, status, minScore, maxAgeDays, debouncedSearch, sort, order]);
 
   // Append the next page. Called by the IntersectionObserver at the list bottom.
   const loadMore = useCallback(() => {
@@ -157,6 +168,7 @@ export function App() {
       status,
       minScore,
       search: debouncedSearch,
+      maxAgeDays,
       sort,
       order,
       limit: PAGE_SIZE,
@@ -177,7 +189,7 @@ export function App() {
         inFlight.current = false;
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, status, minScore, debouncedSearch, sort, order, jobs.length, total]);
+  }, [token, status, minScore, maxAgeDays, debouncedSearch, sort, order, jobs.length, total]);
 
   // Keep the observer callback pointed at the latest loadMore closure.
   const loadMoreRef = useRef(loadMore);
@@ -298,6 +310,16 @@ export function App() {
             onChange={(e) => setMinScore(Number(e.target.value) || 0)}
             style={{ width: 70 }}
           />
+        </label>
+        <label>
+          Published
+          <select value={maxAgeDays} onChange={(e) => setMaxAgeDays(Number(e.target.value))}>
+            {MAX_AGE_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
         </label>
       </div>
 

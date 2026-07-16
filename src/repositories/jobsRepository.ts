@@ -216,6 +216,7 @@ export interface ListJobsFilters {
   status?: JobStatus;
   minScore?: number;
   search?: string; // matches title or company, case-insensitive
+  maxAgeDays?: number; // hide jobs posted more than N days ago (0/undefined = no age filter)
   sort?: SortKey;
   order?: SortOrder;
   limit?: number;
@@ -290,6 +291,12 @@ export async function listJobs(
   if (filters.search && filters.search.trim().length > 0) {
     params.push(`%${filters.search.trim()}%`);
     where.push(`(title ILIKE $${params.length} OR company ILIKE $${params.length})`);
+  }
+  if (typeof filters.maxAgeDays === 'number' && filters.maxAgeDays > 0) {
+    // Hide stale postings (evergreen reqs open for months/years). Rows with an unknown post date
+    // are kept — we can't judge their age, and dropping them would hide possibly-fresh jobs.
+    params.push(filters.maxAgeDays);
+    where.push(`(posted_at IS NULL OR posted_at >= now() - make_interval(days => $${params.length}::int))`);
   }
 
   const whereSql = where.length > 0 ? `WHERE ${where.join(' AND ')}` : '';

@@ -5,6 +5,7 @@ export interface JobQuery {
   status?: JobStatus | '';
   minScore?: number;
   search?: string;
+  maxAgeDays?: number;
   sort?: SortKey;
   order?: SortOrder;
   limit?: number;
@@ -19,6 +20,7 @@ export async function fetchJobs(query: JobQuery): Promise<JobsResponse> {
     params.set('minScore', String(query.minScore));
   }
   if (query.search && query.search.trim()) params.set('search', query.search.trim());
+  if (query.maxAgeDays && query.maxAgeDays > 0) params.set('maxAgeDays', String(query.maxAgeDays));
   if (query.sort) params.set('sort', query.sort);
   if (query.order) params.set('order', query.order);
   if (query.limit) params.set('limit', String(query.limit));

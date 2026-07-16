@@ -23,15 +23,23 @@ language so it doubles as an interview script.
 - **Note:** Prompt caching wouldn't help here — the ~900-token system prompt is below Haiku's
   2,048-token cache minimum, so there's nothing to cache.
 
-## Dashboard: infinite scroll (10/page), default sort newest-first
+## Dashboard: infinite scroll (10/page), sort by publish date, hide stale postings
 
 - **Decision:** The dashboard loads jobs in pages of 10 via infinite scroll (IntersectionObserver
-  on a bottom sentinel, viewport root) and defaults to sort=newest-first (`firstSeen desc`) instead
-  of by score. The server already supported `sort`/`order`/`limit`/`offset`, so this was a
-  frontend-only change plus forwarding `offset` in `fetchJobs`.
-- **Why:** Loading all matches at once (previously `limit: 500`) doesn't scale and buries brand-new
-  roles below high-scoring old ones. "Newest first" matches how a job radar is actually read — what
-  appeared since I last looked. Ten-at-a-time keeps payloads small on mobile and web alike.
+  on a bottom sentinel, viewport root), defaults to sort by **publish date** (`posted desc`, newest
+  first) instead of by score, and hides postings **older than 3 months by default** via a
+  "Published within" filter (30d / 90d / 6mo / all-time). The server already supported
+  `sort`/`order`/`limit`/`offset`; added `maxAgeDays` to `listJobs` + `fetchJobs offset`.
+- **Why:** Loading all matches at once (previously `limit: 500`) doesn't scale and buries fresh
+  roles under high-scoring old ones. Sort was first set to `firstSeen`, but after baseline-seeding
+  every row shares one first-seen date, so it didn't order anything visibly — `posted` is the real
+  recency signal a job-seeker reads by. And ATS boards keep evergreen reqs open for months/years
+  (a real row showed a 2021 publish date); those aren't live openings, so hiding >90-day-old posts
+  by default cut the list roughly in half (3999 → 2204 locally) and removed the stale noise.
+- **Trade-off:** `posted_at` is source-reported, so an inaccurate board date could mis-rank or
+  mis-hide a job; rows with an unknown post date are always kept (can't judge their age). The alert
+  path is unaffected — a genuinely new posting will have a recent date; only the dashboard view
+  filters by age.
 - **Trade-off:** A running total still comes back with each page (an extra count query per fetch) —
   cheap, and it's what tells the client when to stop. An auto-fill loop was added because
   IntersectionObserver fires only on transitions: on a very tall viewport a single 10-row page
