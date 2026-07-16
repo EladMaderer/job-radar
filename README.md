@@ -7,6 +7,13 @@ schedule + Neon Postgres).
 
 **Pipeline:** poll ATS boards → normalize → dedup via DB → store → score → Telegram alert.
 
+Currently watches **28 Israeli tech companies** across Greenhouse, Lever, and Comeet. Adding a
+company is a one-line entry in [src/registry/companies.ts](src/registry/companies.ts):
+`{ name, ats: 'greenhouse' | 'lever' | 'comeet', slug }`. For Greenhouse/Lever the slug is the
+board name; for Comeet it's `company/uid` (read from the company's `comeet.com/jobs/{company}/{uid}`
+links on its careers page). It's a curated watchlist, not a crawler — it won't discover unknown or
+brand-new companies, so it complements a broad site like LinkedIn rather than replacing it.
+
 There's also a **web dashboard** (Phase 2) to browse the full job history and manage application
 status — a React app + serverless API on Vercel, reading the same Neon database. See
 [Dashboard](#dashboard-phase-2).

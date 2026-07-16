@@ -1,6 +1,6 @@
 /** A job normalized into our common shape, regardless of which ATS it came from. */
 export interface Job {
-  source: string; // 'greenhouse' | 'lever'
+  source: string; // 'greenhouse' | 'lever' | 'comeet'
   externalId: string; // stable id within that source
   company: string;
   title: string;

@@ -118,6 +118,34 @@ language so it doubles as an interview script.
 - **Trade-off:** One extra column and a per-cycle "pending" query (indexed, trivial). Baseline
   seed and pre-existing rows are backfilled `alerted_at = now()` so they never ping retroactively.
 
+## Comeet adapter: parse the hosted page, not the API
+
+- **Decision:** Poll Comeet companies by fetching the public Comeet-hosted careers page
+  (`comeet.com/jobs/{company}/{uid}`) and parsing the `COMPANY_POSITIONS_DATA = [ ... ];` array
+  embedded in the HTML. Registry slug is `company/uid`. Since the list has no free-text
+  description, synthesize one from department/level/employment/workplace fields.
+- **Why:** Comeet's clean JSON positions API requires a per-company server-side token that
+  companies don't expose (the API returns "Token is missing"). The hosted page embeds the full
+  positions array with no token, so it's the only reliable free source. The embedded array is a
+  stable, structured JSON blob — more robust than scraping rendered DOM.
+- **Trade-off:** Parsing a JS array out of HTML is more brittle than a documented JSON API (a
+  Comeet page-format change could break it) — mitigated by a clear error if the marker is
+  missing, and the per-company try/catch keeps one broken board from killing the cycle. No
+  per-job description (list payload lacks it); scoring leans on the title + structured fields.
+  Adding a Comeet company needs its `company/uid`, read from the company's careers-page links.
+
+## Registry growth: 6 -> 28 companies, verified before adding
+
+- **Decision:** Grew the seed from 6 to 28 by probing candidate Greenhouse/Lever/Comeet boards
+  and keeping only those that return live Israel-based roles.
+- **Why:** Six companies is a thin funnel; the user compared it to LinkedIn's breadth. More
+  companies is the highest-leverage change for coverage.
+- **Trade-off:** This is a curated watchlist, not a crawler — it can't discover small/new
+  companies, and can't match a full aggregator (LinkedIn/Indeed). That's an inherent limit of
+  the ATS-per-company design; the tool's value is precise, free, instant alerts for chosen
+  companies. More boards also means a longer poll and (with LLM scoring) a larger baseline cost,
+  both bounded by parallelism and scoring-only-new-jobs.
+
 ## Per-request retry on ATS fetches
 
 - **Decision:** `fetchJson` retries a couple of times with linear backoff (20s timeout each).

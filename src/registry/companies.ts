@@ -1,8 +1,9 @@
+import { comeetAdapter, COMEET_SOURCE } from '../ats/comeet.js';
 import { greenhouseAdapter, GREENHOUSE_SOURCE } from '../ats/greenhouse.js';
 import { leverAdapter, LEVER_SOURCE } from '../ats/lever.js';
 import type { AtsAdapter } from '../ats/types.js';
 
-export type AtsName = 'greenhouse' | 'lever';
+export type AtsName = 'greenhouse' | 'lever' | 'comeet';
 
 export interface Company {
   name: string; // display name used on stored jobs + alerts
@@ -42,11 +43,16 @@ export const COMPANIES: Company[] = [
   { name: 'Torq', ats: 'greenhouse', slug: 'torq' },
   { name: 'Salt Security', ats: 'greenhouse', slug: 'saltsecurity' },
   { name: 'Sisense', ats: 'greenhouse', slug: 'sisense' },
+  // Comeet — slug is `company/uid` from the company's comeet.com/jobs/{company}/{uid} links.
+  { name: 'Cyera', ats: 'comeet', slug: 'cyera/17.008' },
+  { name: 'Guardio', ats: 'comeet', slug: 'guardio/57.000' },
+  { name: 'Immunai', ats: 'comeet', slug: 'immunai/37.009' },
 ];
 
 const ADAPTERS: Record<AtsName, AtsAdapter> = {
   [GREENHOUSE_SOURCE]: greenhouseAdapter,
   [LEVER_SOURCE]: leverAdapter,
+  [COMEET_SOURCE]: comeetAdapter,
 };
 
 export function adapterFor(company: Company): AtsAdapter {
