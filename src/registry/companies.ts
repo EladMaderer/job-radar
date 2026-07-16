@@ -15,12 +15,33 @@ export interface Company {
  * All six verified as live (returning jobs) at build time.
  */
 export const COMPANIES: Company[] = [
+  // Original seed
   { name: 'Similarweb', ats: 'greenhouse', slug: 'similarweb' },
   { name: 'JFrog', ats: 'greenhouse', slug: 'jfrog' },
   { name: 'Forter', ats: 'greenhouse', slug: 'forter' },
   { name: 'Pagaya', ats: 'greenhouse', slug: 'pagayais' },
   { name: 'DoubleVerify', ats: 'greenhouse', slug: 'doubleverify' },
   { name: 'Cloudinary', ats: 'lever', slug: 'cloudinary' },
+  // Israeli tech companies — verified to have live boards with Israel-based roles.
+  { name: 'Cato Networks', ats: 'greenhouse', slug: 'catonetworks' },
+  { name: 'Taboola', ats: 'greenhouse', slug: 'taboola' },
+  { name: 'AppsFlyer', ats: 'greenhouse', slug: 'appsflyer' },
+  { name: 'Payoneer', ats: 'greenhouse', slug: 'payoneer' },
+  { name: 'Gong', ats: 'greenhouse', slug: 'gongio' },
+  { name: 'Transmit Security', ats: 'greenhouse', slug: 'transmitsecurity' },
+  { name: 'Fireblocks', ats: 'greenhouse', slug: 'fireblocks' },
+  { name: 'Melio', ats: 'greenhouse', slug: 'melio' },
+  { name: 'Axonius', ats: 'greenhouse', slug: 'axonius' },
+  { name: 'Riskified', ats: 'greenhouse', slug: 'riskified' },
+  { name: 'Augury', ats: 'greenhouse', slug: 'augury' },
+  { name: 'Yotpo', ats: 'greenhouse', slug: 'yotpo' },
+  { name: 'Lightricks', ats: 'greenhouse', slug: 'lightricks' },
+  { name: 'Orca Security', ats: 'greenhouse', slug: 'orcasecurity' },
+  { name: 'Descope', ats: 'greenhouse', slug: 'descope' },
+  { name: 'Apiiro', ats: 'greenhouse', slug: 'apiiro' },
+  { name: 'Torq', ats: 'greenhouse', slug: 'torq' },
+  { name: 'Salt Security', ats: 'greenhouse', slug: 'saltsecurity' },
+  { name: 'Sisense', ats: 'greenhouse', slug: 'sisense' },
 ];
 
 const ADAPTERS: Record<AtsName, AtsAdapter> = {
