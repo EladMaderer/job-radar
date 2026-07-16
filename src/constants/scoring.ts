@@ -23,6 +23,13 @@ export const DESCRIPTION_WEIGHT_FACTOR = 0.5;
 export const SCORE_MIN = 0;
 export const SCORE_MAX = 100;
 
+/**
+ * How many new jobs to score concurrently. LLM scoring is a network round-trip per job, so a
+ * baseline run (every job new) is dominated by that latency; scoring in parallel cuts it from
+ * minutes to seconds. Kept modest to stay well under API rate limits.
+ */
+export const SCORE_CONCURRENCY = 5;
+
 /** Frontend signal — earns the base +40. */
 export const FRONTEND_KEYWORDS = [
   'frontend',

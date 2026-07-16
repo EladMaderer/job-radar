@@ -12,6 +12,8 @@ import {
   markAlerted,
   updateJobFields,
 } from '../repositories/jobsRepository.js';
+import { SCORE_CONCURRENCY } from '../constants/scoring.js';
+import { mapWithConcurrency } from '../lib/concurrency.js';
 import { getScorer } from '../scoring/getScorer.js';
 import { classifyLocation } from '../scoring/location.js';
 import type { Scorer } from '../scoring/types.js';
@@ -55,6 +57,8 @@ export async function runPollCycle(scorer: Scorer = getScorer()): Promise<PollSu
     failedCompanies: [],
   };
 
+  // Pass 1: fetch each board, refresh already-seen jobs, and collect the genuinely-new ones.
+  const newJobs: Job[] = [];
   for (const company of COMPANIES) {
     let candidates: Job[];
     try {
@@ -82,20 +86,23 @@ export async function runPollCycle(scorer: Scorer = getScorer()): Promise<PollSu
         // Seen before: refresh mutable fields only. Never re-score (would re-spend LLM tokens).
         await updateJobFields(job);
         summary.updated += 1;
-        continue;
+      } else {
+        newJobs.push(job);
       }
-
-      // New job: score it once. The scorer may judge it irrelevant, in which case we drop it.
-      const { score, why, relevant } = await scorer.score(job);
-      if (!relevant) {
-        summary.dropped += 1;
-        continue;
-      }
-      // Baseline seed marks everything alerted (silent); otherwise leave pending for alerting.
-      await insertJob(job, score, why, baseline);
-      summary.inserted += 1;
     }
   }
+
+  // Pass 2: score new jobs in parallel (each is an LLM round-trip), then store or drop.
+  // Baseline seed marks everything alerted (silent); otherwise leave pending for alerting.
+  await mapWithConcurrency(newJobs, SCORE_CONCURRENCY, async (job) => {
+    const { score, why, relevant } = await scorer.score(job);
+    if (!relevant) {
+      summary.dropped += 1;
+      return;
+    }
+    await insertJob(job, score, why, baseline);
+    summary.inserted += 1;
+  });
 
   if (!baseline) {
     await sendPendingAlerts(summary);
