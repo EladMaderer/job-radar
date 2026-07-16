@@ -1,0 +1,35 @@
+{
+  "name": "jobs-radar",
+  "version": "0.1.0",
+  "description": "Personal job-search radar: polls ATS job boards, scores new frontend/full-stack roles, alerts on Telegram",
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "poll": "tsx src/poll.ts",
+    "start": "tsx src/start.ts",
+    "migrate": "tsx src/db/migrate.ts",
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "format": "prettier --write ."
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "node-cron": "^4.6.0",
+    "pg": "^8.16.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.0.0",
+    "@types/node": "^20.14.0",
+    "@types/pg": "^8.11.0",
+    "eslint": "^9.0.0",
+    "prettier": "^3.3.0",
+    "tsx": "^4.16.0",
+    "typescript": "^5.5.0",
+    "typescript-eslint": "^8.0.0"
+  }
+}
