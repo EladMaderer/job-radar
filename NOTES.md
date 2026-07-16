@@ -118,6 +118,24 @@ language so it doubles as an interview script.
 - **Trade-off:** One extra column and a per-cycle "pending" query (indexed, trivial). Baseline
   seed and pre-existing rows are backfilled `alerted_at = now()` so they never ping retroactively.
 
+## Auto-discovery: probe the whole ATS universe, not a hand-typed list
+
+- **Decision:** A weekly `discover` job fetches the public universe of Greenhouse/Lever board slugs
+  (~8k + ~4k, from a Common-Crawl-derived public list), probes each for Israel-based roles, and
+  writes the hits to `registry/discovered.json`. The registry merges that with the hand-curated
+  list (curated wins on dup slug for nicer names). A GitHub Actions workflow re-runs it weekly and
+  commits the refreshed file, so newly-launched boards appear with zero manual editing.
+- **Why:** A hardcoded 40-company list can't scale to Israel's ~8k hi-tech companies and never
+  self-updates. Probing the actual slug universe found ~113–129 Israeli Greenhouse/Lever boards —
+  3× the manual list AND the complete set for those two ATSes — and keeps finding new ones over
+  time. Names come free from Greenhouse's `company_name`; Lever names are prettified from the slug.
+- **Trade-off:** It's a heavy job (~12k public probes, ~6 min) — hence weekly and out of the poll
+  cycle. It depends on a third-party slug list (if it vanishes, discovery finds nothing new but the
+  committed registry keeps working). It only covers Greenhouse/Lever — Comeet (hidden uid),
+  SmartRecruiters (gated API), and Workday (per-tenant) can't be auto-discovered, so those stay
+  manual/curated. This is the honest ceiling: ~130 companies, not 8,000 — full market coverage
+  needs a paid job-data aggregator, which the ATS-polling design deliberately avoids.
+
 ## Comeet adapter: parse the hosted page, not the API
 
 - **Decision:** Poll Comeet companies by fetching the public Comeet-hosted careers page

@@ -7,12 +7,15 @@ schedule + Neon Postgres).
 
 **Pipeline:** poll ATS boards → normalize → dedup via DB → store → score → Telegram alert.
 
-Currently watches **28 Israeli tech companies** across Greenhouse, Lever, and Comeet. Adding a
-company is a one-line entry in [src/registry/companies.ts](src/registry/companies.ts):
-`{ name, ats: 'greenhouse' | 'lever' | 'comeet', slug }`. For Greenhouse/Lever the slug is the
-board name; for Comeet it's `company/uid` (read from the company's `comeet.com/jobs/{company}/{uid}`
-links on its careers page). It's a curated watchlist, not a crawler — it won't discover unknown or
-brand-new companies, so it complements a broad site like LinkedIn rather than replacing it.
+Watches **~130 Israeli tech companies** across Greenhouse, Lever, and Comeet — a hand-curated seed
+plus an **auto-discovery** step. `npm run discover` probes the public universe of Greenhouse/Lever
+board slugs (~12k), keeps every board with Israel-based roles, and writes them to
+[src/registry/discovered.json](src/registry/discovered.json); a weekly workflow re-runs it and
+commits new boards, so the list self-updates. The registry merges the discovered set with the
+curated one in [src/registry/companies.ts](src/registry/companies.ts) (add a company manually with
+a one-line `{ name, ats, slug }` — Comeet's slug is `company/uid`). Honest ceiling: auto-discovery
+covers Greenhouse/Lever only (~130 companies) — Comeet/SmartRecruiters/Workday can't be enumerated
+for free, so this stays a broad-but-not-exhaustive radar, complementing a site like LinkedIn.
 
 There's also a **web dashboard** (Phase 2) to browse the full job history and manage application
 status — a React app + serverless API on Vercel, reading the same Neon database. See

@@ -1,0 +1,46 @@
+name: discover
+
+# Weekly auto-discovery: probe the public Greenhouse/Lever board universe for Israel roles and
+# refresh registry/discovered.json. Commits changes back so the poller picks up new companies
+# without any manual editing. Needs no secrets — it only reads public job-board APIs.
+on:
+  schedule:
+    - cron: '0 3 * * 0' # Sundays 03:00 UTC
+  workflow_dispatch: {}
+
+# Allow the job to push the refreshed discovered.json back to the repo.
+permissions:
+  contents: write
+
+concurrency:
+  group: discover
+  cancel-in-progress: false
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Discover boards
+        run: npm run discover
+
+      - name: Commit refreshed discovered.json if changed
+        run: |
+          if git diff --quiet -- src/registry/discovered.json; then
+            echo "No changes to discovered boards."
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add src/registry/discovered.json
+            git commit -m "chore(discover): refresh discovered boards"
+            git push
+          fi

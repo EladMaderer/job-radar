@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { comeetAdapter, COMEET_SOURCE } from '../ats/comeet.js';
 import { greenhouseAdapter, GREENHOUSE_SOURCE } from '../ats/greenhouse.js';
 import { leverAdapter, LEVER_SOURCE } from '../ats/lever.js';
@@ -12,10 +15,11 @@ export interface Company {
 }
 
 /**
- * The boards we poll. Adding a company is a one-line entry here.
- * All six verified as live (returning jobs) at build time.
+ * Hand-curated companies. Adding one is a one-line entry here. Comeet companies live ONLY here
+ * (auto-discovery can't find them). Curated entries win over discovered ones on (ats, slug) —
+ * they have nicer display names.
  */
-export const COMPANIES: Company[] = [
+const CURATED_COMPANIES: Company[] = [
   // Original seed
   { name: 'Similarweb', ats: 'greenhouse', slug: 'similarweb' },
   { name: 'JFrog', ats: 'greenhouse', slug: 'jfrog' },
@@ -60,6 +64,33 @@ export const COMPANIES: Company[] = [
   { name: 'Guardio', ats: 'comeet', slug: 'guardio/57.000' },
   { name: 'Immunai', ats: 'comeet', slug: 'immunai/37.009' },
 ];
+
+/** Auto-discovered Greenhouse/Lever boards (written by `npm run discover`). Absent on first run. */
+function loadDiscovered(): Company[] {
+  try {
+    const path = join(dirname(fileURLToPath(import.meta.url)), 'discovered.json');
+    return JSON.parse(readFileSync(path, 'utf8')) as Company[];
+  } catch {
+    return []; // no discovered.json yet — poll the curated list only
+  }
+}
+
+/** Merge curated + discovered, deduped by (ats, slug); curated wins (better display names). */
+function mergeCompanies(curated: Company[], discovered: Company[]): Company[] {
+  const seen = new Set(curated.map((c) => `${c.ats}:${c.slug}`));
+  const merged = [...curated];
+  for (const d of discovered) {
+    const key = `${d.ats}:${d.slug}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      merged.push(d);
+    }
+  }
+  return merged;
+}
+
+/** The full set of boards the poller fetches: curated companies + auto-discovered boards. */
+export const COMPANIES: Company[] = mergeCompanies(CURATED_COMPANIES, loadDiscovered());
 
 const ADAPTERS: Record<AtsName, AtsAdapter> = {
   [GREENHOUSE_SOURCE]: greenhouseAdapter,

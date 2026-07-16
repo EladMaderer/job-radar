@@ -11,6 +11,7 @@
     "poll": "tsx src/poll.ts",
     "start": "tsx src/start.ts",
     "migrate": "tsx src/db/migrate.ts",
+    "discover": "tsx src/discovery/discover.ts",
     "dev:api": "tsx scripts/devApi.ts",
     "build": "tsc",
     "typecheck": "tsc --noEmit",
