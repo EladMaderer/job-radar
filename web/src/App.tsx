@@ -186,20 +186,20 @@ export function App() {
             <tbody>
               {jobs.map((job) => (
                 <tr key={job.id}>
-                  <td>
+                  <td data-label="Score">
                     <span className={`score ${scoreClass(job.fitScore)}`}>{job.fitScore ?? '—'}</span>
                   </td>
-                  <td className="title-cell">
+                  <td className="title-cell" data-label="Role">
                     <a href={job.url} target="_blank" rel="noreferrer">
                       {job.title}
                     </a>
                     {job.why && <div className="why">{job.why}</div>}
                   </td>
-                  <td>
+                  <td data-label="Company">
                     <div className="company">{job.company}</div>
                     <div className="location">{job.location ?? '—'}</div>
                   </td>
-                  <td>
+                  <td data-label="Status">
                     <select
                       className={`status-select ${job.status}`}
                       value={job.status}
@@ -212,7 +212,9 @@ export function App() {
                       ))}
                     </select>
                   </td>
-                  <td className="date">{formatDate(job.firstSeenAt)}</td>
+                  <td className="date" data-label="First seen">
+                    {formatDate(job.firstSeenAt)}
+                  </td>
                 </tr>
               ))}
               {!loading && jobs.length === 0 && (

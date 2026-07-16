@@ -307,3 +307,104 @@ tbody tr:hover {
 .state-msg.error {
   color: var(--red);
 }
+
+/* ---- Mobile: turn the wide table into stacked cards ---- */
+@media (max-width: 680px) {
+  .app {
+    padding: 1rem 0.75rem 3rem;
+  }
+  header.app-header {
+    flex-wrap: wrap;
+    row-gap: 0.25rem;
+  }
+  header.app-header h1 {
+    font-size: 1.2rem;
+  }
+  .controls {
+    padding: 0.6rem;
+    gap: 0.5rem;
+  }
+  .controls input[type='text'] {
+    flex-basis: 100%; /* full-width search on its own row */
+  }
+
+  .table-wrap {
+    border: none;
+    overflow: visible;
+  }
+  table {
+    display: block;
+    min-width: 0;
+    width: 100%;
+  }
+  thead {
+    display: none; /* column headers (and header-tap sorting) hidden on mobile; default sort is score */
+  }
+  tbody {
+    display: block;
+  }
+  tbody tr {
+    display: block;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0.85rem;
+    margin-bottom: 0.75rem;
+  }
+  tbody tr:hover {
+    background: var(--panel);
+  }
+  tbody td {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.3rem 0;
+    border: none;
+  }
+  tbody td::before {
+    content: attr(data-label);
+    color: var(--muted);
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+
+  /* Role: prominent, full width, no inline label */
+  td.title-cell {
+    display: block;
+    padding-bottom: 0.2rem;
+  }
+  td.title-cell::before {
+    display: none;
+  }
+  td.title-cell a {
+    font-size: 1.02rem;
+  }
+  .why {
+    max-width: 100%;
+    margin-top: 0.35rem;
+  }
+
+  /* Company · location as one muted line, no label */
+  td[data-label='Company'] {
+    display: flex;
+    gap: 0.4rem;
+    color: var(--muted);
+  }
+  td[data-label='Company']::before {
+    display: none;
+  }
+  td[data-label='Company'] .company {
+    color: var(--text);
+    font-weight: 600;
+  }
+  td[data-label='Company'] .location::before {
+    content: '· ';
+    color: var(--border);
+  }
+  .location {
+    white-space: normal;
+  }
+}
