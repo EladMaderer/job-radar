@@ -259,6 +259,24 @@ language so it doubles as an interview script.
   permanently (the watermark advances past them) — with the tight filters this needs >100 new
   matching IL jobs in 4h, which the budget guard would be tripping on anyway.
 
+## TheirStack: first-run window is 30 days (capture the open backlog, not just fresh posts)
+
+- **Decision:** The first run (fresh seed / no watermark yet) uses a **30-day** posted-age window,
+  and the per-run page cap is 5 (free-tier max, ≤125 jobs). Ongoing runs still use 14 days via the
+  watermark. Re-seed = delete the source's rows so the watermark resets, then trigger the workflow.
+- **Why:** The first run is the ONLY chance to capture roles that were already open when we started
+  — the incremental watermark only sees jobs discovered *after* run #1. The original 2-day window
+  (chosen to save credits on a "silent seed") meant the entire standing backlog of open jobs was
+  invisible forever. A real miss surfaced it: a correctly-tagged "Senior Frontend Engineer" at
+  Clover Security (Tel Aviv, posted 30 days before our first run) never appeared, because TheirStack
+  had it but our 2-day window skipped it and the watermark then excluded it permanently. 30 days ≈
+  an open role's useful shelf-life and ≈110 credits with the seniority filter — fits the 200/month
+  free tier as a one-time cost.
+- **Trade-off:** A fresh seed now costs ~110 credits instead of ~11, so two re-baselines in one
+  month could approach the 180 monthly guard. Rare (re-baselines are deliberate), and the guard is
+  the safety valve. Roles posted >30 days ago but still open remain uncatchable — accepted, since
+  "currently open + recently posted" is the useful set for a job search.
+
 ## TheirStack: server-side seniority filter is the budget lever
 
 - **Decision:** Query with `job_seniority_or: ['senior','staff','c_level']`, titles without
