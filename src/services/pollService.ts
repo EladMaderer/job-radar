@@ -124,7 +124,9 @@ async function sendPendingAlerts(summary: PollSummary): Promise<void> {
       await sleep(TELEGRAM_SEND_GAP_MS);
     } catch (err) {
       summary.failedAlerts += 1;
-      console.error(`[poll] alert failed for job ${alert.id} (${alert.title}): ${(err as Error).message}`);
+      console.error(
+        `[poll] alert failed for job ${alert.id} (${alert.title}): ${(err as Error).message}`,
+      );
     }
   }
 
