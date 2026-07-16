@@ -18,6 +18,7 @@
     "format": "prettier --write ."
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.111.0",
     "dotenv": "^16.4.5",
     "node-cron": "^4.6.0",
     "pg": "^8.16.0",

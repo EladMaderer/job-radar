@@ -12,26 +12,20 @@ import {
   markAlerted,
   updateJobFields,
 } from '../repositories/jobsRepository.js';
-import { keywordScorer } from '../scoring/keywordScorer.js';
+import { getScorer } from '../scoring/getScorer.js';
 import { classifyLocation } from '../scoring/location.js';
 import type { Scorer } from '../scoring/types.js';
 
 export interface PollSummary {
   fetched: number; // jobs returned by all boards
-  relevant: number; // passed the base location filter
+  candidates: number; // passed the base location filter
   inserted: number; // newly stored this cycle
   updated: number; // already-seen rows refreshed
+  dropped: number; // new jobs the scorer judged irrelevant (not stored)
   alerted: number; // alerts actually sent (and marked) this cycle
   failedAlerts: number; // sends that failed — stay pending, retried next cycle
   baseline: boolean; // true on the first-ever run (seed silently)
   failedCompanies: string[];
-}
-
-/** A relevant, scored job carried through the cycle. */
-interface ScoredJob {
-  job: Job;
-  score: number;
-  why: string;
 }
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
@@ -47,13 +41,14 @@ const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout
  * only marked alerted once its message actually sends. A failed send is logged and left pending —
  * never fatal, never lost — and retried on the next cycle.
  */
-export async function runPollCycle(scorer: Scorer = keywordScorer): Promise<PollSummary> {
+export async function runPollCycle(scorer: Scorer = getScorer()): Promise<PollSummary> {
   const baseline = (await countJobs()) === 0;
   const summary: PollSummary = {
     fetched: 0,
-    relevant: 0,
+    candidates: 0,
     inserted: 0,
     updated: 0,
+    dropped: 0,
     alerted: 0,
     failedAlerts: 0,
     baseline,
@@ -61,17 +56,13 @@ export async function runPollCycle(scorer: Scorer = keywordScorer): Promise<Poll
   };
 
   for (const company of COMPANIES) {
-    let scored: ScoredJob[];
+    let candidates: Job[];
     try {
       const adapter = adapterFor(company);
       const raw = await adapter(company.slug, company.name);
       summary.fetched += raw.length;
-      scored = [];
-      for (const job of raw) {
-        if (!classifyLocation(job).keep) continue; // clearly-foreign roles are never stored
-        const { score, why } = scorer.score(job);
-        scored.push({ job, score, why });
-      }
+      // Base location filter first; scoring (an LLM call) runs only on jobs we might store.
+      candidates = raw.filter((job) => classifyLocation(job).keep);
     } catch (err) {
       // One bad board must never kill the cycle.
       summary.failedCompanies.push(company.name);
@@ -79,22 +70,30 @@ export async function runPollCycle(scorer: Scorer = keywordScorer): Promise<Poll
       continue;
     }
 
-    summary.relevant += scored.length;
+    summary.candidates += candidates.length;
 
     const existing = await findExistingExternalIds(
       company.ats,
-      scored.map((s) => s.job.externalId),
+      candidates.map((job) => job.externalId),
     );
 
-    for (const { job, score, why } of scored) {
+    for (const job of candidates) {
       if (existing.has(job.externalId)) {
-        await updateJobFields(job, score, why);
+        // Seen before: refresh mutable fields only. Never re-score (would re-spend LLM tokens).
+        await updateJobFields(job);
         summary.updated += 1;
-      } else {
-        // Baseline seed marks everything alerted (silent); otherwise leave pending for alerting.
-        await insertJob(job, score, why, baseline);
-        summary.inserted += 1;
+        continue;
       }
+
+      // New job: score it once. The scorer may judge it irrelevant, in which case we drop it.
+      const { score, why, relevant } = await scorer.score(job);
+      if (!relevant) {
+        summary.dropped += 1;
+        continue;
+      }
+      // Baseline seed marks everything alerted (silent); otherwise leave pending for alerting.
+      await insertJob(job, score, why, baseline);
+      summary.inserted += 1;
     }
   }
 
@@ -139,8 +138,9 @@ async function sendPendingAlerts(summary: PollSummary): Promise<void> {
 function logSummary(s: PollSummary): void {
   const mode = s.baseline ? ' [BASELINE SEED — no alerts]' : '';
   console.log(
-    `[poll] fetched=${s.fetched} relevant=${s.relevant} inserted=${s.inserted} ` +
-      `updated=${s.updated} alerted=${s.alerted} failedAlerts=${s.failedAlerts}${mode}`,
+    `[poll] fetched=${s.fetched} candidates=${s.candidates} inserted=${s.inserted} ` +
+      `updated=${s.updated} dropped=${s.dropped} alerted=${s.alerted} ` +
+      `failedAlerts=${s.failedAlerts}${mode}`,
   );
   if (s.failedCompanies.length > 0) {
     console.warn(`[poll] failed boards: ${s.failedCompanies.join(', ')}`);

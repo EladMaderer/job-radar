@@ -11,8 +11,10 @@ const envSchema = z.object({
   DATABASE_URL: z.string().url('must be a valid postgres connection string'),
   POLL_INTERVAL_MIN: z.coerce.number().int().positive().default(15),
   SCORE_THRESHOLD: z.coerce.number().int().min(0).max(100).default(45),
-  // Only used in Phase 3 (LLM scoring). Optional today.
+  // LLM scoring (Phase 3). Optional — without it the scorer falls back to keyword.
   ANTHROPIC_API_KEY: z.string().optional(),
+  // Scorer selection: 'auto' uses the LLM when ANTHROPIC_API_KEY is set, else keyword.
+  SCORER: z.enum(['auto', 'keyword', 'llm']).default('auto'),
   // 'telegram' (default) or 'console' — lets the whole pipeline run offline.
   NOTIFIER: z.enum(['telegram', 'console']).default('telegram'),
 });

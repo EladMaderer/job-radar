@@ -53,6 +53,22 @@ boards and sends no alerts. Alerts fire only for jobs that appear after that.
    Every run after that alerts only on roles that appear later. So expect silence on run #1;
    that's correct, not a failure.
 
+### LLM scoring (Phase 3, optional)
+
+By default jobs are scored by a free keyword scorer. To score with **Claude Haiku 4.5** instead
+— which reads each role's actual focus and drops non-engineering / backend-primary roles the
+keyword scorer can't judge — set an Anthropic API key:
+
+1. Create a key at [console.anthropic.com](https://console.anthropic.com) and add a few dollars of
+   credit (this is pay-as-you-go, separate from any Claude Code subscription). Scoring ~100 jobs
+   once costs roughly 20¢; ongoing cycles are pennies.
+2. Add `ANTHROPIC_API_KEY` to your GitHub Actions secrets (and local `.env` for local runs).
+
+Only **new** jobs are LLM-scored; already-seen jobs are never re-scored. If the key is unset or a
+call fails, it falls back to the keyword scorer automatically. To apply the new scoring to jobs
+already in the DB, re-baseline: `DELETE FROM jobs;` in Neon, then run the workflow — the next run
+re-seeds every current role with LLM scores and drops the irrelevant ones.
+
 ### Honest caveats
 
 - Scheduled Actions are best-effort: runs can start a few minutes late.

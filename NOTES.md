@@ -68,6 +68,23 @@ language so it doubles as an interview script.
 - **Trade-off:** Keywords miss nuance (e.g. "no React experience required" reads as a React
   match). Accepted for v1; the threshold only gates pings, and the full set is stored.
 
+## LLM scorer (Phase 3): Claude Haiku 4.5 behind the Scorer interface
+
+- **Decision:** Add an LLM scorer (Claude Haiku 4.5, structured output) that reads each job against
+  the candidate profile and returns `{ score, why, relevant }`. `relevant: false` drops the role
+  entirely (non-engineering, backend-primary, DevOps/junior). Selected via `getScorer()`:
+  LLM when `ANTHROPIC_API_KEY` is set, else the keyword scorer; a per-job try/catch falls back to
+  keyword on any API error. Only NEW jobs are scored — updates never re-score.
+- **Why:** Keyword scoring hit its ceiling — it scored a backend-heavy "Payments" role 78 (found
+  "full stack"/"react" in the body) and kept non-engineering roles like "Solutions Consultant". An
+  LLM reads role focus and the candidate's lean-backend qualification, which keywords can't. Haiku
+  is cheap enough (~20¢ to score 100 jobs once, then pennies) that per-job scoring is fine.
+  Scoring only new jobs and never re-scoring on update bounds cost to genuinely new roles.
+- **Trade-off:** Adds a paid API dependency (separate from any Claude Code subscription) and network
+  latency to the poll (baseline run scores every job sequentially — slower but one-time). Mitigated:
+  keyword fallback keeps it working (and free) if the key is absent or the API fails. Scores set at
+  first sight aren't refreshed if the description later changes materially — acceptable.
+
 ## Store every relevant job, threshold only gates alerts
 
 - **Decision:** Persist every job that passes the base filter (Israel / remote-friendly, not

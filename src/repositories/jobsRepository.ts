@@ -257,13 +257,15 @@ export async function updateStatus(id: number, status: JobStatus): Promise<JobLi
 
 /**
  * Refresh a job we've seen before: update the mutable fields and bump `last_seen_at`.
- * `first_seen_at` and `status` are deliberately left untouched.
+ * `first_seen_at`, `status`, `fit_score`, `why`, and `alerted_at` are deliberately left untouched —
+ * the score is computed once at insert (re-scoring every cycle would re-spend LLM tokens for
+ * nothing) and status/alert state are owned elsewhere.
  */
-export async function updateJobFields(job: Job, fitScore: number, why: string): Promise<void> {
+export async function updateJobFields(job: Job): Promise<void> {
   await pool.query(
     `UPDATE jobs SET
        company = $3, title = $4, location = $5, url = $6, description = $7,
-       posted_at = $8, fit_score = $9, why = $10, last_seen_at = now()
+       posted_at = $8, last_seen_at = now()
      WHERE source = $1 AND external_id = $2`,
     [
       job.source,
@@ -274,8 +276,6 @@ export async function updateJobFields(job: Job, fitScore: number, why: string): 
       job.url,
       job.description,
       job.postedAt,
-      fitScore,
-      why,
     ],
   );
 }
