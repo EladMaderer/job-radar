@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { fetchJobs, updateJobStatus } from './api.js';
 import { AuthError, clearToken, getToken, setToken } from './auth.js';
 import { Login } from './Login.js';
@@ -122,7 +122,7 @@ export function App() {
     }
   }
 
-  const arrow = useMemo(() => (order === 'desc' ? '↓' : '↑'), [order]);
+  const arrow = order === 'desc' ? '↓' : '↑';
 
   return (
     <div className="app">
