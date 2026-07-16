@@ -5,6 +5,58 @@ language so it doubles as an interview script.
 
 ---
 
+## LLM scoring credit safety — four layers + a hard per-run cap
+
+- **Decision:** The LLM scorer's spend is bounded by four stacked guards, ordered so the cheapest
+  filter runs first: (1) a **frontend pre-filter** drops obvious non-frontend roles for FREE (no
+  API call) — ~95% of the board; (2) **only NEW jobs** are scored (dedup runs before scoring, and
+  a scored row is never re-scored); (3) a **1,200-char description cap** + `max_tokens: 400` on
+  Claude Haiku 4.5 bound each call to ~$0.0017; (4) a new **hard per-run call ceiling**
+  (`MAX_LLM_SCORES_PER_RUN`, default 1500) past which jobs fall back to the free keyword scorer.
+- **Why:** Enabling `SCORER=llm` + a re-baseline puts real (if small) money in the loop. A normal
+  re-baseline is a few hundred calls (~$1); the concern is a *runaway* — a board bug or a discovery
+  explosion returning tens of thousands of frontend jobs in one run. Layers 1–2 make steady-state
+  trivially cheap; layer 4 caps the worst single run at ~$2.50 no matter what the boards return.
+- **Trade-off:** If the cap ever trips, the overflow jobs get a keyword score (shown, possibly
+  noisy) and dedup means they won't be LLM-re-scored later. Acceptable: the cap only fires in a
+  runaway the user is meant to notice (it logs loudly) and fix by raising the env var + re-baseline.
+- **Note:** Prompt caching wouldn't help here — the ~900-token system prompt is below Haiku's
+  2,048-token cache minimum, so there's nothing to cache.
+
+## Dashboard: infinite scroll (10/page), default sort newest-first
+
+- **Decision:** The dashboard loads jobs in pages of 10 via infinite scroll (IntersectionObserver
+  on a bottom sentinel, viewport root) and defaults to sort=newest-first (`firstSeen desc`) instead
+  of by score. The server already supported `sort`/`order`/`limit`/`offset`, so this was a
+  frontend-only change plus forwarding `offset` in `fetchJobs`.
+- **Why:** Loading all matches at once (previously `limit: 500`) doesn't scale and buries brand-new
+  roles below high-scoring old ones. "Newest first" matches how a job radar is actually read — what
+  appeared since I last looked. Ten-at-a-time keeps payloads small on mobile and web alike.
+- **Trade-off:** A running total still comes back with each page (an extra count query per fetch) —
+  cheap, and it's what tells the client when to stop. An auto-fill loop was added because
+  IntersectionObserver fires only on transitions: on a very tall viewport a single 10-row page
+  wouldn't fill the screen, leaving no scrollbar to trigger the next load; after each page settles
+  we re-check the sentinel's position and keep loading until it's below the fold. Mobile hides
+  column headers (so no header-tap re-sort there), which is fine now that the default is the
+  newest-first order I want anyway.
+
+## Full-stack strictness — drop roles that DEMAND backend/DB depth the candidate lacks
+
+- **Decision:** The LLM scorer now DROPS (`relevant=false`) a full-stack role — even one with React
+  present — when it makes a hard requirement of backend depth the candidate doesn't have: a
+  multi-year/seniority-grade Node.js/backend requirement ("3+ years Node.js", "strong/deep Node")
+  or a meaningful/required database requirement ("strong SQL", "deep Postgres", data modeling,
+  query optimization). A role that merely MENTIONS Node/DB as a plus or a light secondary part is
+  still kept and scored normally.
+- **Why:** The candidate is React/React-Native-primary with *some* Node.js and light DB exposure.
+  A role gating on "3 years Node.js" or "significant DB experience" would filter the candidate out
+  regardless of the React content — surfacing it is noise. The discriminator is a hard/quantified
+  REQUIREMENT vs a mention.
+- **Trade-off:** Borderline wording ("solid Node.js a plus") leans toward KEEP, so a few
+  backend-leaning full-stack roles still slip through; better than dropping genuine FE-oriented
+  full-stack roles that list Node as a secondary skill. Verified live: 3-yr-Node and strong-DB
+  roles drop; Node-as-a-mention and pure React Native keep (score 88).
+
 ## Serverless one-shot poller on GitHub Actions (no server)
 
 - **Decision:** The poller is a stateless script (`npm run poll`) that does one full cycle and

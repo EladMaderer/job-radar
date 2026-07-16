@@ -20,7 +20,12 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-family:
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    sans-serif;
   font-size: 14px;
 }
 
@@ -151,6 +156,11 @@ header.app-header .logout:hover {
   overflow-x: auto;
   border: 1px solid var(--border);
   border-radius: 10px;
+}
+
+/* Zero-visual sentinel the IntersectionObserver watches to trigger the next page. */
+.scroll-sentinel {
+  height: 1px;
 }
 
 table {
@@ -346,7 +356,7 @@ tbody tr:hover {
     width: 100%;
   }
   thead {
-    display: none; /* column headers (and header-tap sorting) hidden on mobile; default sort is score */
+    display: none; /* column headers (and header-tap sorting) hidden on mobile; default sort is newest-first */
   }
   tbody {
     display: block;

@@ -13,6 +13,10 @@ const envSchema = z.object({
   SCORE_THRESHOLD: z.coerce.number().int().min(0).max(100).default(45),
   // LLM scoring (Phase 3). Optional — without it the scorer falls back to keyword.
   ANTHROPIC_API_KEY: z.string().optional(),
+  // Hard ceiling on LLM scoring calls per run — a money circuit-breaker. A normal re-baseline
+  // needs a few hundred; past this cap, remaining jobs fall back to the free keyword scorer
+  // (logged) so a misbehaving board or a runaway discovery can never spend credits unbounded.
+  MAX_LLM_SCORES_PER_RUN: z.coerce.number().int().positive().default(1500),
   // Scorer selection. Default is the free keyword scorer — the LLM scorer costs money and must be
   // opted into explicitly with SCORER=llm. `preprocess` maps an empty value (e.g. an unset GitHub
   // Actions variable, which arrives as "") to the default instead of a validation error.

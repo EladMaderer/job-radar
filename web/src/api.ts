@@ -8,6 +8,7 @@ export interface JobQuery {
   sort?: SortKey;
   order?: SortOrder;
   limit?: number;
+  offset?: number;
 }
 
 /** GET /api/jobs with the current filters/sort as query params. */
@@ -21,6 +22,7 @@ export async function fetchJobs(query: JobQuery): Promise<JobsResponse> {
   if (query.sort) params.set('sort', query.sort);
   if (query.order) params.set('order', query.order);
   if (query.limit) params.set('limit', String(query.limit));
+  if (query.offset) params.set('offset', String(query.offset));
 
   const res = await authFetch(`/api/jobs?${params.toString()}`);
   if (!res.ok) throw new Error(`Request failed: HTTP ${res.status}`);

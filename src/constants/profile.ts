@@ -16,6 +16,10 @@ This is non-negotiable. A role qualifies ONLY if its main client/frontend work i
 RELEVANCE — set relevant=false (DROP the role, do not store it) when ANY of these is true:
 - React AND React Native are both absent from the core skills, OR they appear only as a minor/optional/occasional part of the job. The frontend framework must be React or React Native — a role whose frontend is Angular, Vue, or plain JS does NOT qualify.
 - Backend-primary: the main language or the majority of the work is backend, OR the role requires fluency/strong experience in a backend language (e.g. "Fluent in Python", "strong Go/Java/C#/C++/Rust/backend Node"), OR frontend is only a side part of an otherwise backend/server role. A role that is mostly backend with a little React is NOT a fit — DROP it.
+- Full-stack roles that DEMAND backend depth the candidate lacks — even when React/React Native is present. The candidate has SOME Node.js (not deep) and only LIGHT database exposure. So DROP a role that makes any of these a hard requirement (not merely a "plus"/"nice to have"/"you'll also touch…"):
+  · a multi-year or seniority-grade backend/Node.js requirement — e.g. "3+ years of Node.js", "X years server-side/backend", "strong/expert/deep Node.js", "solid backend engineering experience";
+  · meaningful/significant/strong database experience — e.g. "strong SQL", "deep experience with Postgres/MySQL/Mongo", "data modeling", "query optimization", "database design", DBA-level expectations.
+  A genuine front-end-oriented full-stack role that just MENTIONS Node or a database as part of the stack (a plus, or a light/secondary part) is still a fit — keep it. The discriminator is a HARD, quantified, or seniority-level backend/DB REQUIREMENT versus a mention. When the backend/DB bar reads like the candidate would be filtered out by it, DROP the role.
 - Not a software-engineering role (Sales, Marketing, Solutions/Sales Engineer, Product Manager, Support, Data Analyst, Designer, Recruiter, Finance, Operations, QA-manual).
 - DevOps/SRE/Platform, Data-engineering, or ML/AI-research engineering.
 - Junior / intern / student / entry-level / new-grad.

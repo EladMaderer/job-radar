@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { fetchJobs, updateJobStatus } from './api.js';
 import { AuthError, clearToken, getToken, setToken } from './auth.js';
 import { Login } from './Login.js';
@@ -10,6 +10,8 @@ import {
   type SortKey,
   type SortOrder,
 } from './types.js';
+
+const PAGE_SIZE = 10;
 
 const COLUMNS: { key: SortKey; label: string }[] = [
   { key: 'score', label: 'Score' },
@@ -52,15 +54,23 @@ export function App() {
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<JobStatus | ''>('');
   const [minScore, setMinScore] = useState(0);
-  const [sort, setSort] = useState<SortKey>('score');
+  const [sort, setSort] = useState<SortKey>('firstSeen');
   const [order, setOrder] = useState<SortOrder>('desc');
 
   const [jobs, setJobs] = useState<JobListItem[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const debouncedSearch = useDebounced(search, 300);
+  // Guards against firing a second page fetch while one is already in flight.
+  const inFlight = useRef(false);
+  // Bumped on every reset; a fetch whose id is stale discards its result so a
+  // slow in-flight page can never append rows onto a freshly-reset list.
+  const requestId = useRef(0);
+
+  const hasMore = jobs.length < total;
 
   function logout(message?: string) {
     clearToken();
@@ -68,32 +78,120 @@ export function App() {
     setAuthError(message);
   }
 
+  function handleFetchError(err: unknown) {
+    if (err instanceof AuthError) {
+      logout('That password was rejected.');
+    } else {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  // Reset + first page: refetch from offset 0 whenever filters/sort/search change.
   useEffect(() => {
     if (!token) return;
-    let cancelled = false;
+    const id = ++requestId.current;
+    inFlight.current = true;
     setLoading(true);
     setError(null);
-    fetchJobs({ status, minScore, search: debouncedSearch, sort, order, limit: 500 })
+    fetchJobs({
+      status,
+      minScore,
+      search: debouncedSearch,
+      sort,
+      order,
+      limit: PAGE_SIZE,
+      offset: 0,
+    })
       .then((data) => {
-        if (cancelled) return;
+        if (id !== requestId.current) return;
         setJobs(data.jobs);
         setTotal(data.total);
       })
       .catch((err: unknown) => {
-        if (cancelled) return;
-        if (err instanceof AuthError) {
-          logout('That password was rejected.');
-        } else {
-          setError(err instanceof Error ? err.message : String(err));
-        }
+        if (id === requestId.current) handleFetchError(err);
       })
       .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (id !== requestId.current) return;
+        setLoading(false);
+        inFlight.current = false;
       });
+    // Invalidate this request if the filters change before it resolves.
     return () => {
-      cancelled = true;
+      requestId.current += 1;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, status, minScore, debouncedSearch, sort, order]);
+
+  // Append the next page. Called by the IntersectionObserver at the list bottom.
+  const loadMore = useCallback(() => {
+    if (!token || inFlight.current) return;
+    if (jobs.length === 0 || jobs.length >= total) return;
+    const id = requestId.current;
+    inFlight.current = true;
+    setLoadingMore(true);
+    fetchJobs({
+      status,
+      minScore,
+      search: debouncedSearch,
+      sort,
+      order,
+      limit: PAGE_SIZE,
+      offset: jobs.length,
+    })
+      .then((data) => {
+        if (id !== requestId.current) return;
+        setJobs((prev) => [...prev, ...data.jobs]);
+        setTotal(data.total);
+      })
+      .catch((err: unknown) => {
+        if (id === requestId.current) handleFetchError(err);
+      })
+      .finally(() => {
+        // A reset (stale id) now owns inFlight — don't release its guard.
+        if (id !== requestId.current) return;
+        setLoadingMore(false);
+        inFlight.current = false;
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, status, minScore, debouncedSearch, sort, order, jobs.length, total]);
+
+  // Keep the observer callback pointed at the latest loadMore closure.
+  const loadMoreRef = useRef(loadMore);
+  useEffect(() => {
+    loadMoreRef.current = loadMore;
+  }, [loadMore]);
+
+  // Callback ref: attaches an IntersectionObserver when the sentinel mounts.
+  // root is null (the viewport) because the page scrolls on the window — the
+  // .table-wrap container only scrolls horizontally, never vertically.
+  const observer = useRef<IntersectionObserver | null>(null);
+  const sentinelNode = useRef<HTMLDivElement | null>(null);
+  const sentinelRef = useCallback((node: HTMLDivElement | null) => {
+    sentinelNode.current = node;
+    observer.current?.disconnect();
+    if (!node) return;
+    observer.current = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) loadMoreRef.current();
+      },
+      { root: null, rootMargin: '200px' },
+    );
+    observer.current.observe(node);
+  }, []);
+
+  // Auto-fill: IntersectionObserver fires only on intersection *transitions*, so a page that
+  // doesn't fill a tall viewport would stall — the sentinel stays on-screen but never re-crosses
+  // the threshold, and with no scrollbar the user can't trigger the next load. After each page
+  // settles, if the sentinel is still within reach, keep loading until it's pushed below the fold
+  // or nothing remains. Guarded by inFlight (in loadMore) so it can't race the observer.
+  useEffect(() => {
+    if (loading || loadingMore || !hasMore) return;
+    const node = sentinelNode.current;
+    if (!node) return;
+    if (node.getBoundingClientRect().top <= window.innerHeight + 200) {
+      loadMore();
+    }
+  }, [jobs.length, hasMore, loading, loadingMore, loadMore]);
 
   if (!token) {
     return (
@@ -182,64 +280,70 @@ export function App() {
       {error && <div className="state-msg error">Failed to load: {error}</div>}
 
       {!error && (
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                {COLUMNS.map((col) => (
-                  <th key={col.key} onClick={() => toggleSort(col.key)}>
-                    {col.label}
-                    {sort === col.key && <span className="arrow">{arrow}</span>}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {jobs.map((job) => (
-                <tr key={job.id}>
-                  <td data-label="Score">
-                    <span className={`score ${scoreClass(job.fitScore)}`}>
-                      {job.fitScore ?? '—'}
-                    </span>
-                  </td>
-                  <td className="title-cell" data-label="Role">
-                    <a href={job.url} target="_blank" rel="noreferrer">
-                      {job.title}
-                    </a>
-                    {job.why && <div className="why">{job.why}</div>}
-                  </td>
-                  <td data-label="Company">
-                    <div className="company">{job.company}</div>
-                    <div className="location">{job.location ?? '—'}</div>
-                  </td>
-                  <td data-label="Status">
-                    <select
-                      className={`status-select ${job.status}`}
-                      value={job.status}
-                      onChange={(e) => void changeStatus(job, e.target.value as JobStatus)}
-                    >
-                      {STATUSES.map((s) => (
-                        <option key={s} value={s}>
-                          {statusLabel(s)}
-                        </option>
-                      ))}
-                    </select>
-                  </td>
-                  <td className="date" data-label="First seen">
-                    {formatDate(job.firstSeenAt)}
-                  </td>
-                </tr>
-              ))}
-              {!loading && jobs.length === 0 && (
+        <>
+          <div className="table-wrap">
+            <table>
+              <thead>
                 <tr>
-                  <td colSpan={COLUMNS.length}>
-                    <div className="state-msg">No jobs match these filters.</div>
-                  </td>
+                  {COLUMNS.map((col) => (
+                    <th key={col.key} onClick={() => toggleSort(col.key)}>
+                      {col.label}
+                      {sort === col.key && <span className="arrow">{arrow}</span>}
+                    </th>
+                  ))}
                 </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {jobs.map((job) => (
+                  <tr key={job.id}>
+                    <td data-label="Score">
+                      <span className={`score ${scoreClass(job.fitScore)}`}>
+                        {job.fitScore ?? '—'}
+                      </span>
+                    </td>
+                    <td className="title-cell" data-label="Role">
+                      <a href={job.url} target="_blank" rel="noreferrer">
+                        {job.title}
+                      </a>
+                      {job.why && <div className="why">{job.why}</div>}
+                    </td>
+                    <td data-label="Company">
+                      <div className="company">{job.company}</div>
+                      <div className="location">{job.location ?? '—'}</div>
+                    </td>
+                    <td data-label="Status">
+                      <select
+                        className={`status-select ${job.status}`}
+                        value={job.status}
+                        onChange={(e) => void changeStatus(job, e.target.value as JobStatus)}
+                      >
+                        {STATUSES.map((s) => (
+                          <option key={s} value={s}>
+                            {statusLabel(s)}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                    <td className="date" data-label="First seen">
+                      {formatDate(job.firstSeenAt)}
+                    </td>
+                  </tr>
+                ))}
+                {!loading && jobs.length === 0 && (
+                  <tr>
+                    <td colSpan={COLUMNS.length}>
+                      <div className="state-msg">No jobs match these filters.</div>
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Sentinel: when it scrolls into view the observer loads the next page. */}
+          {hasMore && <div ref={sentinelRef} className="scroll-sentinel" aria-hidden="true" />}
+          {loadingMore && <div className="state-msg">loading…</div>}
+        </>
       )}
     </div>
   );
