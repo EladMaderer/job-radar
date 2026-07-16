@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { fetchJobs } from './api.js';
+import { fetchJobs, updateJobStatus } from './api.js';
 import { STATUSES, type JobListItem, type JobStatus, type SortKey, type SortOrder } from './types.js';
 
 const COLUMNS: { key: SortKey; label: string }[] = [
@@ -73,6 +73,18 @@ export function App() {
     } else {
       setSort(key);
       setOrder('desc');
+    }
+  }
+
+  async function changeStatus(job: JobListItem, next: JobStatus) {
+    const prev = job.status;
+    // Optimistic: reflect the change immediately, revert if the request fails.
+    setJobs((list) => list.map((j) => (j.id === job.id ? { ...j, status: next } : j)));
+    try {
+      await updateJobStatus(job.id, next);
+    } catch (err) {
+      setJobs((list) => list.map((j) => (j.id === job.id ? { ...j, status: prev } : j)));
+      setError(err instanceof Error ? err.message : String(err));
     }
   }
 
@@ -151,7 +163,17 @@ export function App() {
                     <div className="location">{job.location ?? '—'}</div>
                   </td>
                   <td>
-                    <span className={`badge ${job.status}`}>{job.status}</span>
+                    <select
+                      className={`status-select ${job.status}`}
+                      value={job.status}
+                      onChange={(e) => void changeStatus(job, e.target.value as JobStatus)}
+                    >
+                      {STATUSES.map((s) => (
+                        <option key={s} value={s}>
+                          {s}
+                        </option>
+                      ))}
+                    </select>
                   </td>
                   <td className="date">{formatDate(job.firstSeenAt)}</td>
                 </tr>

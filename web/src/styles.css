@@ -196,6 +196,38 @@ tbody tr:hover {
   border-color: var(--amber);
 }
 
+.status-select {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 999px;
+  padding: 0.2rem 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: capitalize;
+  cursor: pointer;
+}
+.status-select.new {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.status-select.interested {
+  color: var(--purple);
+  border-color: var(--purple);
+}
+.status-select.applied {
+  color: var(--green);
+  border-color: var(--green);
+}
+.status-select.rejected {
+  color: var(--red);
+  border-color: var(--red);
+}
+.status-select.interview {
+  color: var(--amber);
+  border-color: var(--amber);
+}
+
 .date {
   color: var(--muted);
   white-space: nowrap;

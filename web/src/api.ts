@@ -1,4 +1,4 @@
-import type { JobsResponse, JobStatus, SortKey, SortOrder } from './types.js';
+import type { JobListItem, JobsResponse, JobStatus, SortKey, SortOrder } from './types.js';
 
 export interface JobQuery {
   status?: JobStatus | '';
@@ -24,4 +24,15 @@ export async function fetchJobs(query: JobQuery): Promise<JobsResponse> {
   const res = await fetch(`/api/jobs?${params.toString()}`);
   if (!res.ok) throw new Error(`Request failed: HTTP ${res.status}`);
   return (await res.json()) as JobsResponse;
+}
+
+/** PATCH /api/jobs/:id — change a job's status. Returns the updated job. */
+export async function updateJobStatus(id: number, status: JobStatus): Promise<JobListItem> {
+  const res = await fetch(`/api/jobs/${id}`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ status }),
+  });
+  if (!res.ok) throw new Error(`Update failed: HTTP ${res.status}`);
+  return ((await res.json()) as { job: JobListItem }).job;
 }

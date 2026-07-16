@@ -1,6 +1,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { parse } from 'node:url';
 import jobsHandler from '../api/jobs.js';
+import jobByIdHandler from '../api/jobs/[id].js';
 
 /**
  * Local-only dev server for the Vercel API functions. Vercel has no free offline runner without
@@ -10,18 +11,34 @@ import jobsHandler from '../api/jobs.js';
  */
 const PORT = 3000;
 
+/** Read and JSON-parse the request body (Vercel does this automatically in production). */
+async function readJsonBody(req: IncomingMessage): Promise<unknown> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of req) chunks.push(chunk as Buffer);
+  if (chunks.length === 0) return undefined;
+  try {
+    return JSON.parse(Buffer.concat(chunks).toString('utf8'));
+  } catch {
+    return undefined;
+  }
+}
+
 /** Adapt a raw Node req/res to the minimal Vercel handler shape our handlers use. */
-function adapt(req: IncomingMessage, res: ServerResponse) {
-  const { query } = parse(req.url ?? '', true);
-  const vreq = Object.assign(req, { query });
+function adapt(
+  req: IncomingMessage,
+  res: ServerResponse,
+  query: Record<string, string | string[]>,
+  body: unknown,
+) {
+  const vreq = Object.assign(req, { query, body });
   const vres = Object.assign(res, {
     status(code: number) {
       res.statusCode = code;
       return vres;
     },
-    json(body: unknown) {
+    json(payload: unknown) {
       res.setHeader('content-type', 'application/json');
-      res.end(JSON.stringify(body));
+      res.end(JSON.stringify(payload));
       return vres;
     },
   });
@@ -29,18 +46,31 @@ function adapt(req: IncomingMessage, res: ServerResponse) {
 }
 
 const server = createServer((req, res) => {
-  const pathname = parse(req.url ?? '', true).pathname ?? '';
-  const { vreq, vres } = adapt(req, res);
+  void (async () => {
+    const { pathname, query } = parse(req.url ?? '', true);
+    const path = pathname ?? '';
+    const body = req.method === 'GET' ? undefined : await readJsonBody(req);
 
-  if (pathname === '/api/jobs') {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    void jobsHandler(vreq as any, vres as any);
-    return;
-  }
+    // /api/jobs/:id  (dynamic route)
+    const idMatch = /^\/api\/jobs\/([^/]+)$/.exec(path);
+    if (idMatch) {
+      const { vreq, vres } = adapt(req, res, { ...query, id: idMatch[1]! }, body);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await jobByIdHandler(vreq as any, vres as any);
+      return;
+    }
 
-  res.statusCode = 404;
-  res.setHeader('content-type', 'application/json');
-  res.end(JSON.stringify({ error: 'Not Found' }));
+    if (path === '/api/jobs') {
+      const { vreq, vres } = adapt(req, res, query as Record<string, string | string[]>, body);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await jobsHandler(vreq as any, vres as any);
+      return;
+    }
+
+    res.statusCode = 404;
+    res.setHeader('content-type', 'application/json');
+    res.end(JSON.stringify({ error: 'Not Found' }));
+  })();
 });
 
 server.listen(PORT, () => {

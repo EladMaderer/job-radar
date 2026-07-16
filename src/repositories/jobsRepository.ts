@@ -156,6 +156,42 @@ const LIST_MAX_LIMIT = 500;
 const DEFAULT_SORT: SortKey = 'firstSeen';
 const DEFAULT_ORDER: SortOrder = 'desc';
 
+/** Columns selected/returned for a dashboard job row (kept in one place for list + update). */
+const JOB_ROW_COLUMNS = `id, source, company, title, location, url, fit_score, why, status,
+            posted_at, first_seen_at, last_seen_at`;
+
+interface JobRow {
+  id: number;
+  source: string;
+  company: string;
+  title: string;
+  location: string | null;
+  url: string;
+  fit_score: number | null;
+  why: string | null;
+  status: JobStatus;
+  posted_at: Date | null;
+  first_seen_at: Date;
+  last_seen_at: Date;
+}
+
+function mapJobRow(r: JobRow): JobListItem {
+  return {
+    id: r.id,
+    source: r.source,
+    company: r.company,
+    title: r.title,
+    location: r.location,
+    url: r.url,
+    fitScore: r.fit_score,
+    why: r.why,
+    status: r.status,
+    postedAt: r.posted_at,
+    firstSeenAt: r.first_seen_at,
+    lastSeenAt: r.last_seen_at,
+  };
+}
+
 /**
  * Read jobs for the dashboard, newest first, with optional filters. Parameterized throughout —
  * no string interpolation into SQL. Returns rows plus the total matching count for pagination.
@@ -197,9 +233,8 @@ export async function listJobs(
   const dir = sortDir ?? (DEFAULT_ORDER === 'desc' ? 'DESC' : 'ASC');
   // sortColumn/dir come only from whitelists above, never user strings — safe to interpolate.
   // Tie-break on id so paging is stable when the sort column has duplicates.
-  const { rows } = await pool.query(
-    `SELECT id, source, company, title, location, url, fit_score, why, status,
-            posted_at, first_seen_at, last_seen_at
+  const { rows } = await pool.query<JobRow>(
+    `SELECT ${JOB_ROW_COLUMNS}
        FROM jobs
        ${whereSql}
        ORDER BY ${sortColumn} ${dir} NULLS LAST, id DESC
@@ -207,22 +242,17 @@ export async function listJobs(
     [...params, limit, offset],
   );
 
-  const jobs: JobListItem[] = rows.map((r) => ({
-    id: r.id,
-    source: r.source,
-    company: r.company,
-    title: r.title,
-    location: r.location,
-    url: r.url,
-    fitScore: r.fit_score,
-    why: r.why,
-    status: r.status,
-    postedAt: r.posted_at,
-    firstSeenAt: r.first_seen_at,
-    lastSeenAt: r.last_seen_at,
-  }));
+  return { jobs: rows.map(mapJobRow), total };
+}
 
-  return { jobs, total };
+/** Update a job's status (user-owned in the dashboard). Returns the updated row, or null if no
+ * such job exists. The poller never writes status, so this is the only place it changes. */
+export async function updateStatus(id: number, status: JobStatus): Promise<JobListItem | null> {
+  const { rows } = await pool.query<JobRow>(
+    `UPDATE jobs SET status = $2 WHERE id = $1 RETURNING ${JOB_ROW_COLUMNS}`,
+    [id, status],
+  );
+  return rows[0] ? mapJobRow(rows[0]) : null;
 }
 
 /**
