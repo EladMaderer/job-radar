@@ -1,8 +1,12 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { requireAuth } from '../_auth.js';
-import { updateStatus, type JobStatus } from '../../src/repositories/jobsRepository.js';
+import {
+  JOB_STATUSES,
+  updateStatus,
+  type JobStatus,
+} from '../../src/repositories/jobsRepository.js';
 
-const VALID_STATUSES: JobStatus[] = ['new', 'interested', 'applied', 'rejected', 'interview'];
+const VALID_STATUSES = JOB_STATUSES as readonly JobStatus[];
 
 function first(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value;
@@ -26,7 +30,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
   const body = (req.body ?? {}) as { status?: unknown };
   const status = body.status;
-  if (typeof status !== 'string' || !(VALID_STATUSES as string[]).includes(status)) {
+  if (typeof status !== 'string' || !(VALID_STATUSES as readonly string[]).includes(status)) {
     res.status(400).json({ error: `status must be one of: ${VALID_STATUSES.join(', ')}` });
     return;
   }

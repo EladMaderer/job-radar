@@ -260,6 +260,10 @@ tbody tr:hover {
   color: var(--amber);
   border-color: var(--amber);
 }
+.badge.not_interested {
+  color: var(--muted);
+  border-color: var(--border);
+}
 
 .status-select {
   background: var(--panel-2);
@@ -291,6 +295,10 @@ tbody tr:hover {
 .status-select.interview {
   color: var(--amber);
   border-color: var(--amber);
+}
+.status-select.not_interested {
+  color: var(--muted);
+  border-color: var(--border);
 }
 
 .date {

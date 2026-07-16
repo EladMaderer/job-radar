@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { requireAuth } from './_auth.js';
 import {
+  JOB_STATUSES,
   listJobs,
   SORT_COLUMNS,
   type JobStatus,
@@ -8,7 +9,7 @@ import {
   type SortKey,
 } from '../src/repositories/jobsRepository.js';
 
-const VALID_STATUSES: JobStatus[] = ['new', 'interested', 'applied', 'rejected', 'interview'];
+const VALID_STATUSES = JOB_STATUSES as readonly JobStatus[];
 const VALID_SORTS = Object.keys(SORT_COLUMNS) as SortKey[];
 
 /** First value of a query param (Vercel gives string | string[]). */
@@ -20,7 +21,7 @@ function parseFilters(query: VercelRequest['query']): ListJobsFilters {
   const filters: ListJobsFilters = {};
 
   const status = first(query.status);
-  if (status && (VALID_STATUSES as string[]).includes(status)) {
+  if (status && (VALID_STATUSES as readonly string[]).includes(status)) {
     filters.status = status as JobStatus;
   }
 

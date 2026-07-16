@@ -2,7 +2,14 @@ import { useEffect, useState } from 'react';
 import { fetchJobs, updateJobStatus } from './api.js';
 import { AuthError, clearToken, getToken, setToken } from './auth.js';
 import { Login } from './Login.js';
-import { STATUSES, type JobListItem, type JobStatus, type SortKey, type SortOrder } from './types.js';
+import {
+  STATUSES,
+  statusLabel,
+  type JobListItem,
+  type JobStatus,
+  type SortKey,
+  type SortOrder,
+} from './types.js';
 
 const COLUMNS: { key: SortKey; label: string }[] = [
   { key: 'score', label: 'Score' },
@@ -21,7 +28,11 @@ function scoreClass(score: number | null): string {
 
 function formatDate(iso: string | null): string {
   if (!iso) return '—';
-  return new Date(iso).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+  return new Date(iso).toLocaleDateString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  });
 }
 
 /** Debounce a rapidly-changing value (used for the search box). */
@@ -146,10 +157,10 @@ export function App() {
         <label>
           Status
           <select value={status} onChange={(e) => setStatus(e.target.value as JobStatus | '')}>
-            <option value="">all</option>
+            <option value="">all (except not interested)</option>
             {STATUSES.map((s) => (
               <option key={s} value={s}>
-                {s}
+                {statusLabel(s)}
               </option>
             ))}
           </select>
@@ -187,7 +198,9 @@ export function App() {
               {jobs.map((job) => (
                 <tr key={job.id}>
                   <td data-label="Score">
-                    <span className={`score ${scoreClass(job.fitScore)}`}>{job.fitScore ?? '—'}</span>
+                    <span className={`score ${scoreClass(job.fitScore)}`}>
+                      {job.fitScore ?? '—'}
+                    </span>
                   </td>
                   <td className="title-cell" data-label="Role">
                     <a href={job.url} target="_blank" rel="noreferrer">
@@ -207,7 +220,7 @@ export function App() {
                     >
                       {STATUSES.map((s) => (
                         <option key={s} value={s}>
-                          {s}
+                          {statusLabel(s)}
                         </option>
                       ))}
                     </select>

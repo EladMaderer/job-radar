@@ -114,7 +114,15 @@ export async function markAlerted(id: number): Promise<void> {
 
 // --- Dashboard read layer (Phase 2) ---------------------------------------------------------
 
-export type JobStatus = 'new' | 'interested' | 'applied' | 'rejected' | 'interview';
+export const JOB_STATUSES = [
+  'new',
+  'interested',
+  'applied',
+  'rejected',
+  'interview',
+  'not_interested',
+] as const;
+export type JobStatus = (typeof JOB_STATUSES)[number];
 
 /** One job row as the dashboard needs it. */
 export interface JobListItem {
@@ -211,6 +219,10 @@ export async function listJobs(
   if (filters.status) {
     params.push(filters.status);
     where.push(`status = $${params.length}`);
+  } else {
+    // Hide "not interested" by default; it only shows when explicitly filtered to it.
+    params.push('not_interested');
+    where.push(`status <> $${params.length}`);
   }
   if (typeof filters.minScore === 'number') {
     params.push(filters.minScore);

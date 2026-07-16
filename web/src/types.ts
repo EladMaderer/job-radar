@@ -19,9 +19,22 @@ export interface JobsResponse {
   total: number;
 }
 
-export type JobStatus = 'new' | 'interested' | 'applied' | 'rejected' | 'interview';
+export type JobStatus =
+  'new' | 'interested' | 'applied' | 'rejected' | 'interview' | 'not_interested';
 
-export const STATUSES: JobStatus[] = ['new', 'interested', 'applied', 'rejected', 'interview'];
+export const STATUSES: JobStatus[] = [
+  'new',
+  'interested',
+  'applied',
+  'rejected',
+  'interview',
+  'not_interested',
+];
+
+/** Friendly label for a status value (e.g. 'not_interested' -> 'not interested'). */
+export function statusLabel(status: JobStatus): string {
+  return status.replace(/_/g, ' ');
+}
 
 export type SortKey = 'score' | 'firstSeen' | 'posted' | 'company' | 'title' | 'status';
 export type SortOrder = 'asc' | 'desc';

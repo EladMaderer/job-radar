@@ -1,6 +1,12 @@
 import { useState } from 'react';
 
-export function Login({ onSubmit, error }: { onSubmit: (password: string) => void; error?: string }) {
+export function Login({
+  onSubmit,
+  error,
+}: {
+  onSubmit: (password: string) => void;
+  error?: string;
+}) {
   const [password, setPassword] = useState('');
 
   return (
