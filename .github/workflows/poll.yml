@@ -1,9 +1,15 @@
 name: poll
 
-# Free serverless scheduler: no always-on server, just a stateless one-shot every ~20 min.
+# Free serverless scheduler: no always-on server, just a stateless one-shot.
 on:
   schedule:
-    - cron: '*/20 * * * *' # best-effort; GitHub may delay runs a few minutes
+    # Every 30 min, 04:00–20:30 UTC, Sunday–Friday.
+    # GitHub cron is UTC-only and can't follow DST, and Israel is UTC+2 (winter) / UTC+3 (summer).
+    # This UTC window is the intersection that never lands in Israel's 00:00–06:00 quiet hours in
+    # EITHER offset: in winter it covers Israel 06:00–22:30, in summer 07:00–23:30 (a little edge
+    # coverage traded for guaranteeing no night-time polls). `0-5` = Sun–Fri, skipping Saturday
+    # (Shabbat). Runs are best-effort and may start a few minutes late.
+    - cron: '0,30 4-20 * * 0-5'
   workflow_dispatch: {} # manual trigger from the Actions tab (use this for the first baseline seed)
 
 # Avoid overlapping runs if one cycle runs long.
