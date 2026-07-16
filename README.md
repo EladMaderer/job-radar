@@ -41,9 +41,13 @@ boards and sends no alerts. Alerts fire only for jobs that appear after that.
    unlimited free Actions minutes (private repos have a monthly cap; if you keep it private,
    widen the cron to every 30–60 min).
 3. In the repo: Settings → Secrets and variables → Actions, add:
-   `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `DATABASE_URL` (the Neon string), `SCORE_THRESHOLD`.
-4. The workflow in `.github/workflows/poll.yml` runs on schedule; trigger it once manually
-   (Actions tab → poll → Run workflow) to baseline-seed and verify.
+   `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `DATABASE_URL` (the Neon string), and
+   `SCORE_THRESHOLD` (e.g. `45` — jobs scoring at or above it trigger an alert).
+4. The workflow in `.github/workflows/poll.yml` runs on schedule and applies migrations first.
+   Trigger it once manually (Actions tab → poll → Run workflow) — this **first run
+   baseline-seeds**: it stores everything currently on the boards and sends **no** alerts.
+   Every run after that alerts only on roles that appear later. So expect silence on run #1;
+   that's correct, not a failure.
 
 ### Honest caveats
 

@@ -86,6 +86,23 @@ language so it doubles as an interview script.
   tightening later is a one-character `.env`/secret change.
 - **Trade-off:** A few more pings at first. Better than silently missing real matches.
 
+## Per-request retry on ATS fetches
+
+- **Decision:** `fetchJson` retries a couple of times with linear backoff (20s timeout each).
+- **Why:** DoubleVerify's Greenhouse board (fetched with `?content=true`) intermittently
+  exceeded a single 15s timeout and got dropped for a whole cycle. A retry makes a slow board a
+  non-event; the per-company try/catch is still there as the last line of defense.
+- **Trade-off:** A genuinely-down board makes a run take a little longer before giving up. Bounded
+  by the Action's 10-minute `timeout-minutes`.
+
+## Local Postgres on host port 5433
+
+- **Decision:** docker-compose maps Postgres to host `5433`, not `5432`.
+- **Why:** This machine already runs a native Postgres on `5432`; mapping there meant the app
+  silently connected to the wrong database (missing role). `5433` sidesteps the clash.
+- **Trade-off:** One more thing to remember locally. Production (Neon) is unaffected — it uses a
+  full connection string.
+
 ## ESM + NodeNext modules
 
 - **Decision:** `"type": "module"`, TypeScript `module: NodeNext`, relative imports carry `.js`

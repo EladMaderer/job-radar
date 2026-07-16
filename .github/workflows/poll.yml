@@ -1,0 +1,39 @@
+name: poll
+
+# Free serverless scheduler: no always-on server, just a stateless one-shot every ~20 min.
+on:
+  schedule:
+    - cron: '*/20 * * * *' # best-effort; GitHub may delay runs a few minutes
+  workflow_dispatch: {} # manual trigger from the Actions tab (use this for the first baseline seed)
+
+# Avoid overlapping runs if one cycle runs long.
+concurrency:
+  group: poll
+  cancel-in-progress: false
+
+jobs:
+  poll:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Apply migrations
+        run: npm run migrate
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      - name: Run one poll cycle
+        run: npm run poll
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          SCORE_THRESHOLD: ${{ secrets.SCORE_THRESHOLD }}
