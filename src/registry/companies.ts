@@ -43,6 +43,9 @@ export const COMPANIES: Company[] = [
   { name: 'Torq', ats: 'greenhouse', slug: 'torq' },
   { name: 'Salt Security', ats: 'greenhouse', slug: 'saltsecurity' },
   { name: 'Sisense', ats: 'greenhouse', slug: 'sisense' },
+  { name: 'Connecteam', ats: 'greenhouse', slug: 'connecteam' },
+  { name: 'Guardz', ats: 'greenhouse', slug: 'guardz' },
+  { name: 'Datadog', ats: 'greenhouse', slug: 'datadog' },
   // Comeet — slug is `company/uid` from the company's comeet.com/jobs/{company}/{uid} links.
   { name: 'Cyera', ats: 'comeet', slug: 'cyera/17.008' },
   { name: 'Guardio', ats: 'comeet', slug: 'guardio/57.000' },
