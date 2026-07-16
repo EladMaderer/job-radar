@@ -15,6 +15,13 @@ jobs:
   poll:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    # Job-level env: config validation loads the full schema on import, so every step that runs
+    # our code (migrate as well as poll) needs all vars, not just the ones it appears to use.
+    env:
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      SCORE_THRESHOLD: ${{ secrets.SCORE_THRESHOLD }}
     steps:
       - uses: actions/checkout@v4
 
@@ -27,13 +34,6 @@ jobs:
 
       - name: Apply migrations
         run: npm run migrate
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
       - name: Run one poll cycle
         run: npm run poll
-        env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          SCORE_THRESHOLD: ${{ secrets.SCORE_THRESHOLD }}
