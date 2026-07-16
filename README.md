@@ -27,8 +27,12 @@ npm run start             # local-only: cron loop every POLL_INTERVAL_MIN
 The first run against an empty DB **baseline-seeds**: it stores everything currently on the
 boards and sends no alerts. Alerts fire only for jobs that appear after that.
 
-> Note: some corporate networks block `api.telegram.org`. If a local send times out, the
-> pipeline still works — it will send fine from the GitHub Actions runner.
+> **Corporate network note.** Some networks (e.g. Zscaler) intercept TLS with their own root
+> CA, which Node's `fetch` won't trust by default — job-board fetches fail with
+> `UNABLE_TO_GET_ISSUER_CERT_LOCALLY`, and `api.telegram.org` may be blocked outright. For local
+> runs behind such a proxy, point Node at a CA bundle that includes the corporate root:
+> `NODE_EXTRA_CA_CERTS=/path/to/corp-roots.pem npm run poll`. None of this affects production —
+> the GitHub Actions runner has a clean network and needs no such setup.
 
 ## Deployment (free, no card)
 
