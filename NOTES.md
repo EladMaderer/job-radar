@@ -264,6 +264,24 @@ language so it doubles as an interview script.
   for free and the LLM filters the rest. The notes below document the earlier free-tier design and
   are kept for history — several of their budget constraints no longer apply.
 
+## Scoring: backend-depth SCORE CAP for full-stack roles (keep, don't drop)
+
+- **Decision:** A full-stack role where React/RN is present but the role expects PROVEN / SOLID /
+  strong backend competence — "proven experience with Node.js and Express", "5+ years of full-stack
+  development", "strong background in [a backend technology]" — is KEPT (relevant=true) but the LLM
+  caps its score at ~50 (Low band). DROP is reserved for the heavy/quantified cases (3+ years Node,
+  expert/deep backend, DBA-level DB, or backend-primary). High seniority (Staff/Principal/Architect)
+  alone is not a drop reason — the candidate is senior.
+- **Why:** User feedback — an Autofleet "Senior Full Stack Developer" (proven Node/Express + 5-yr
+  full-stack + DB familiarity) scored 78, and a Palo Alto architect role too high. The candidate is
+  frontend-primary with light backend, so these are stretch fits that should rank low but stay
+  visible ("a bit too much, just a bit"). The prior drop-only rule mis-handled them: it either
+  scored "proven Node" high (missed it) or, once tightened, over-corrected to a full DROP.
+- **Trade-off:** It's a graduated, judgment-based signal (proven → cap ~50; heavy/quantified →
+  drop) with an inherently fuzzy boundary. Only affects NEWLY-scored jobs — rows already stored keep
+  their scores unless re-scored (dedup never re-scores). Verified live: Autofleet 78→48, Palo Alto
+  kept at 50, RN/React controls 92/85, 3+yr-Node and backend-primary drop.
+
 ## TheirStack: credit guard keyed by billing period, not calendar month (P0-1)
 
 - **Decision:** The credit meter is keyed by billing-period start (`period_start` 'YYYY-MM-DD'),
