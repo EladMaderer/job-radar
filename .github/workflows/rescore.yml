@@ -1,0 +1,39 @@
+name: rescore
+
+# One-off recalibration: re-score every currently-relevant job through the current LLM rubric and
+# overwrite its stored score. Run this MANUALLY after changing the scoring prompt so the existing
+# dashboard reflects the new rules. Costs LLM credits (~1 call per relevant row), NO TheirStack
+# credits. Manual-only — never scheduled.
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Report changes without writing (true/false)'
+        required: false
+        default: 'false'
+
+concurrency:
+  group: rescore
+  cancel-in-progress: false
+
+jobs:
+  rescore:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      SCORE_THRESHOLD: ${{ secrets.SCORE_THRESHOLD }}
+      SCORER: ${{ vars.SCORER }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      RESCORE_DRY_RUN: ${{ github.event.inputs.dry_run == 'true' && '1' || '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Re-score relevant jobs
+        run: npm run rescore

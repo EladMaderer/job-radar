@@ -264,6 +264,20 @@ language so it doubles as an interview script.
   for free and the LLM filters the rest. The notes below document the earlier free-tier design and
   are kept for history — several of their budget constraints no longer apply.
 
+## One-off rescore tool: recalibrate existing rows without re-fetching
+
+- **Decision:** `npm run rescore` (+ a manual `rescore.yml` workflow) re-scores every currently-
+  relevant row through the CURRENT scorer and overwrites its fit_score/why/relevant. Guarded to
+  `SCORER=llm`; supports `RESCORE_DRY_RUN=1` (preview) and `RESCORE_LIMIT=N` (test subset).
+- **Why:** The poller scores each job exactly once (dedup) to avoid re-billing, so a scoring-rubric
+  change only affects NEW jobs — the existing dashboard goes stale. Re-scoring in place costs ~1 LLM
+  call per relevant row but ZERO TheirStack credits (no re-fetch), so it's the cheap way to apply a
+  new rubric (e.g. the backend-depth cap) to what's already stored.
+- **Trade-off:** Manual, one-off, never scheduled (re-running re-spends LLM credits). `remote`/
+  `countryCode` aren't persisted columns, so they're defaulted on reconstruction — fine, the LLM
+  reads the `location` string. Only rows that still have a description (the relevant ones) can be
+  re-scored; already-dropped lean rows are gone. A row can flip to irrelevant and drop off.
+
 ## Scoring: backend-depth SCORE CAP for full-stack roles (keep, don't drop)
 
 - **Decision:** A full-stack role where React/RN is present but the role expects PROVEN / SOLID /

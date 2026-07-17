@@ -10,6 +10,7 @@
   "scripts": {
     "poll": "tsx src/poll.ts",
     "poll:theirstack": "tsx src/pollTheirStack.ts",
+    "rescore": "tsx src/rescore.ts",
     "start": "tsx src/start.ts",
     "migrate": "tsx src/db/migrate.ts",
     "discover": "tsx src/discovery/discover.ts",

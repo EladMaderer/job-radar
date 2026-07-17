@@ -189,6 +189,81 @@ export async function markAlerted(id: number): Promise<void> {
   await pool.query('UPDATE jobs SET alerted_at = now() WHERE id = $1', [id]);
 }
 
+/** A stored row reconstructed enough to re-score (one-off recalibration; see src/rescore.ts). */
+export interface RescoreRow {
+  id: number;
+  oldScore: number | null;
+  oldRelevant: boolean;
+  job: Job;
+}
+
+/**
+ * Relevant rows that still have a description, so they can be re-scored. Irrelevant rows are stored
+ * lean (description=null) and can't be re-scored, but they're already hidden so it doesn't matter.
+ */
+export async function listRelevantForRescore(limit?: number): Promise<RescoreRow[]> {
+  const { rows } = await pool.query<{
+    id: number;
+    source: string;
+    external_id: string;
+    company: string;
+    title: string;
+    location: string | null;
+    url: string;
+    description: string | null;
+    posted_at: Date | null;
+    seniority: string | null;
+    technology_slugs: string[] | null;
+    fit_score: number | null;
+    relevant: boolean;
+  }>(
+    `SELECT id, source, external_id, company, title, location, url, description, posted_at,
+            seniority, technology_slugs, fit_score, relevant
+       FROM jobs
+      WHERE relevant = true AND description IS NOT NULL
+      ORDER BY id${limit ? ` LIMIT ${Number(limit)}` : ''}`,
+  );
+  return rows.map((r) => ({
+    id: r.id,
+    oldScore: r.fit_score,
+    oldRelevant: r.relevant,
+    // remote/countryCode aren't persisted (not needed by the LLM scorer, which reads the location
+    // string); default them. The LLM re-derives location fit from `location` + description.
+    job: {
+      source: r.source,
+      externalId: r.external_id,
+      company: r.company,
+      title: r.title,
+      location: r.location,
+      url: r.url,
+      description: r.description,
+      postedAt: r.posted_at,
+      remote: false,
+      countryCode: null,
+      seniority: r.seniority,
+      technologySlugs: r.technology_slugs ?? undefined,
+    },
+  }));
+}
+
+/**
+ * Overwrite a job's score/relevance (one-off recalibration only — the poller never re-scores).
+ * If a row flips to irrelevant, drop its description to match the lean-storage invariant.
+ */
+export async function updateScore(
+  id: number,
+  fitScore: number,
+  why: string,
+  relevant: boolean,
+): Promise<void> {
+  await pool.query(
+    `UPDATE jobs SET fit_score = $2, why = $3, relevant = $4,
+       description = CASE WHEN $4::boolean THEN description ELSE NULL END
+     WHERE id = $1`,
+    [id, fitScore, why, relevant],
+  );
+}
+
 // --- Dashboard read layer (Phase 2) ---------------------------------------------------------
 
 export const JOB_STATUSES = [
