@@ -21,25 +21,29 @@ export async function sourcesWithRows(): Promise<Set<string>> {
 }
 
 /**
- * TheirStack credits consumed in `month` ('YYYY-MM' UTC). This is the accurate credit meter:
- * TheirStack bills per job RETURNED (not stored) and its balance doesn't reset when we delete rows,
- * so this lives in its own table and survives re-baselines — unlike counting job rows.
+ * TheirStack credits consumed in the billing period keyed by `periodStart` ('YYYY-MM-DD' UTC). The
+ * accurate credit meter: TheirStack bills per job RETURNED (not stored) and its balance doesn't
+ * reset when we delete rows, so this lives in its own table and survives re-baselines. Keyed by
+ * billing-period start (plan renews on an anniversary day), not calendar month.
  */
-export async function theirStackCreditsUsed(month: string): Promise<number> {
+export async function theirStackCreditsUsed(periodStart: string): Promise<number> {
   const { rows } = await pool.query<{ credits: number }>(
-    'SELECT credits FROM theirstack_usage WHERE month = $1',
-    [month],
+    'SELECT credits FROM theirstack_usage WHERE period_start = $1',
+    [periodStart],
   );
   return rows[0]?.credits ?? 0;
 }
 
-/** Add `credits` (= jobs returned by a run) to the running total for `month`. */
-export async function addTheirStackCreditsUsed(month: string, credits: number): Promise<void> {
+/** Add `credits` (= jobs returned by a run) to the running total for the billing period. */
+export async function addTheirStackCreditsUsed(
+  periodStart: string,
+  credits: number,
+): Promise<void> {
   if (credits <= 0) return;
   await pool.query(
-    `INSERT INTO theirstack_usage (month, credits) VALUES ($1, $2)
-     ON CONFLICT (month) DO UPDATE SET credits = theirstack_usage.credits + EXCLUDED.credits`,
-    [month, credits],
+    `INSERT INTO theirstack_usage (period_start, credits) VALUES ($1, $2)
+     ON CONFLICT (period_start) DO UPDATE SET credits = theirstack_usage.credits + EXCLUDED.credits`,
+    [periodStart, credits],
   );
 }
 

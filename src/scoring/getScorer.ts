@@ -85,7 +85,11 @@ export function getScorer(): Scorer {
 
   if (SCORER === 'llm') {
     if (!ANTHROPIC_API_KEY) {
-      console.warn('[score] SCORER=llm but ANTHROPIC_API_KEY is unset — using keyword scorer.');
+      console.error(
+        '::error::[score] SCORER=llm but ANTHROPIC_API_KEY is unset — silently falling back to the ' +
+          'keyword scorer, which NEVER drops a role. The unfiltered TheirStack query then stores ' +
+          'noise. Add the ANTHROPIC_API_KEY secret.',
+      );
       return keywordScorer;
     }
     console.log(

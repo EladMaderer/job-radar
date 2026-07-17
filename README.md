@@ -69,13 +69,23 @@ By default jobs are scored by a free keyword scorer. To score with **Claude Haik
 — which reads each role's actual focus and drops non-engineering / backend-primary roles the
 keyword scorer can't judge — set an Anthropic API key:
 
+Enabling it takes **two settings** — a repository *variable* AND a *secret* (different tabs):
+
 1. Create a key at [console.anthropic.com](https://console.anthropic.com) and add a few dollars of
-   credit (this is pay-as-you-go, separate from any Claude Code subscription). Scoring ~100 jobs
-   once costs roughly 20¢; ongoing cycles are pennies.
-2. Add `ANTHROPIC_API_KEY` to your GitHub Actions secrets (and local `.env` for local runs).
+   credit (pay-as-you-go, separate from any Claude Code subscription). Scoring ~100 jobs once costs
+   roughly 20¢; ongoing cycles are pennies.
+2. **Settings → Secrets and variables → Actions → Variables tab** → New repository **variable**:
+   name `SCORER`, value `llm`. (A *variable*, not a secret — it's non-sensitive config.)
+3. **Same page → Secrets tab** → New repository **secret**: name `ANTHROPIC_API_KEY`, value = your
+   key. Add it to local `.env` too for local runs.
+
+> ⚠️ **The TheirStack source depends on this.** Its query deliberately has no seniority/precision
+> filter — the LLM scorer is the strainer. If `SCORER` isn't `llm` (or the key is missing), the
+> keyword scorer runs, and it **never drops a role**, so TheirStack stores unfiltered noise. Both
+> the poll and theirstack runs now log a loud warning if this is misconfigured — check the run log.
 
 Only **new** jobs are LLM-scored; already-seen jobs are never re-scored. If the key is unset or a
-call fails, it falls back to the keyword scorer automatically. To apply the new scoring to jobs
+call fails, it falls back to the keyword scorer automatically (with the loud warning above). To apply the new scoring to jobs
 already in the DB, re-baseline: `DELETE FROM jobs;` in Neon, then run the workflow — the next run
 re-seeds every current role with LLM scores and drops the irrelevant ones.
 

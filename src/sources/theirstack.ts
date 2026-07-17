@@ -1,6 +1,7 @@
 import { config } from '../config/env.js';
 import { HTTP_TIMEOUT_MS, USER_AGENT, withRetry } from '../constants/http.js';
 import {
+  THEIRSTACK_BROAD_TITLES,
   THEIRSTACK_COUNTRY_CODES,
   THEIRSTACK_FIRST_RUN_MAX_AGE_DAYS,
   THEIRSTACK_JOB_TITLES,
@@ -119,18 +120,30 @@ async function searchPage(apiKey: string, body: Record<string, unknown>): Promis
   });
 }
 
+/** The active title list: base React/frontend set, plus generic-engineer titles when opted in. */
+function activeTitles(): string[] {
+  return config.THEIRSTACK_BROAD_TITLES
+    ? [...THEIRSTACK_JOB_TITLES, ...THEIRSTACK_BROAD_TITLES]
+    : THEIRSTACK_JOB_TITLES;
+}
+
 /**
  * Fetch jobs discovered since `watermark` (or, on the first run, within the posted-age window).
- * Pagination is capped by THEIRSTACK_MAX_PAGES; every returned job costs a credit, so the caller
- * logs counts as the burn meter.
+ * `maxCredits` is a HARD cap on jobs returned this run (each = 1 credit) — the credit budget's
+ * remaining balance — so a big backfill can't overshoot: pagination stops before a page would
+ * exceed it, and logs the truncation. Bounded above by THEIRSTACK_MAX_PAGES.
  */
-export async function fetchTheirStackJobs(watermark: Date | null): Promise<Job[]> {
+export async function fetchTheirStackJobs(
+  watermark: Date | null,
+  maxCredits = Number.POSITIVE_INFINITY,
+): Promise<Job[]> {
   const apiKey = config.THEIRSTACK_API_KEY;
   if (!apiKey) throw new Error('THEIRSTACK_API_KEY is not set');
 
+  const titles = activeTitles();
   const excludeCompanies = COMPANIES.map((c) => c.name);
   const body: Record<string, unknown> = {
-    job_title_or: THEIRSTACK_JOB_TITLES,
+    job_title_or: titles,
     job_country_code_or: THEIRSTACK_COUNTRY_CODES,
     // No seniority pre-filter: TheirStack's tags are unreliable (it mislabels senior roles), and
     // the LLM scorer judges seniority far better — it already drops junior/intern roles.
@@ -139,7 +152,6 @@ export async function fetchTheirStackJobs(watermark: Date | null): Promise<Job[]
       ? config.THEIRSTACK_MAX_AGE_DAYS
       : THEIRSTACK_FIRST_RUN_MAX_AGE_DAYS,
     company_name_not: excludeCompanies,
-    limit: config.THEIRSTACK_LIMIT,
     order_by: [{ field: 'discovered_at', desc: false }],
   };
   if (watermark) {
@@ -148,24 +160,40 @@ export async function fetchTheirStackJobs(watermark: Date | null): Promise<Job[]
   }
 
   const jobs: Job[] = [];
+  let capped = false;
   for (let page = 0; page < config.THEIRSTACK_MAX_PAGES; page += 1) {
-    const raws = await searchPage(apiKey, { ...body, page });
+    // Never fetch more than the credits left this period — trim the last page to fit.
+    const budgetLeft = maxCredits - jobs.length;
+    if (budgetLeft <= 0) {
+      capped = true;
+      break;
+    }
+    const pageLimit = Math.min(config.THEIRSTACK_LIMIT, budgetLeft);
+    const raws = await searchPage(apiKey, { ...body, page, limit: pageLimit });
     jobs.push(...raws.map(toJob));
     console.log(
       `[theirstack] page ${page}: ${raws.length} jobs returned (≈${raws.length} credits)` +
-        ` | filters: titles=${THEIRSTACK_JOB_TITLES.length} country=IL` +
+        ` | titles=${titles.length} country=IL cap=${pageLimit}` +
         ` watermark=${watermark ? body.discovered_at_gte : 'none (first run)'}`,
     );
-    if (raws.length < config.THEIRSTACK_LIMIT) break; // last page
+    if (raws.length < pageLimit) break; // last page (fewer results than we asked for)
     if (page === config.THEIRSTACK_MAX_PAGES - 1) {
       console.warn(
-        `[theirstack] page cap (${config.THEIRSTACK_MAX_PAGES}) hit with full pages — jobs beyond ` +
-          'the cap in this window may be missed (watermark advances past them). With the current ' +
-          'tight filters this should never happen outside the first run; if it recurs, raise ' +
-          'THEIRSTACK_MAX_PAGES.',
+        `::warning::[theirstack] page cap (${config.THEIRSTACK_MAX_PAGES}) hit with full pages — ` +
+          'more jobs may exist this window; raise THEIRSTACK_MAX_PAGES if this recurs.',
       );
     }
   }
-  console.log(`[theirstack] total this run: ${jobs.length} jobs (≈${jobs.length} credits)`);
+  if (capped) {
+    console.warn(
+      `::warning::[theirstack] credit cap reached — fetch truncated at ${jobs.length} jobs ` +
+        `(remaining budget this period was ${maxCredits}). Some matching jobs were not fetched.`,
+    );
+  }
+  const uniqueCompanies = new Set(jobs.map((j) => j.company)).size;
+  console.log(
+    `[theirstack] total this run: ${jobs.length} jobs (≈${jobs.length} credits) from ` +
+      `${uniqueCompanies} companies. (jobs/search bills API credits only — no company credits.)`,
+  );
   return jobs;
 }

@@ -29,6 +29,17 @@ export const THEIRSTACK_JOB_TITLES = [
   'Mobile Engineer',
 ];
 
+/**
+ * Bare generic-engineer titles, added only when THEIRSTACK_BROAD_TITLES=true. "Software Engineer" is
+ * exactly the title that hides React roles behind a generic name — the recall the paid tier is for —
+ * but it also pulls the most noise, so it's gated: enable ONLY with the LLM scorer confirmed live.
+ */
+export const THEIRSTACK_BROAD_TITLES = [
+  'Software Engineer',
+  'Software Developer',
+  'Senior Software Engineer',
+];
+
 export const THEIRSTACK_COUNTRY_CODES = ['IL'];
 
 /**

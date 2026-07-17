@@ -264,6 +264,70 @@ language so it doubles as an interview script.
   for free and the LLM filters the rest. The notes below document the earlier free-tier design and
   are kept for history — several of their budget constraints no longer apply.
 
+## TheirStack: credit guard keyed by billing period, not calendar month (P0-1)
+
+- **Decision:** The credit meter is keyed by billing-period start (`period_start` 'YYYY-MM-DD'),
+  computed from `THEIRSTACK_BILLING_CYCLE_DAY` (default 16), not the calendar month. Migration 007
+  renames the column and carries the old free-tier row into the current period as a conservative,
+  clearly-flagged-unverified floor.
+- **Why:** The paid plan renews on the 16th. The old calendar-month key (`'YYYY-MM'`) would reset to
+  0 on the 1st while TheirStack kept counting the 16th→16th window — the guard would show green with
+  half the period's spend already gone, and could blow the real cap. Cycle day capped at 1–28 so
+  every month has it (no Feb-29/31 edges).
+- **Trade-off:** The carried-over 167 predates the paid plan, so it's approximate — the run log
+  prints `credits: <used>/<budget> for period <start> → <end>` so it can be reconciled against
+  TheirStack's dashboard and corrected. Assumes a fixed monthly anniversary (not a 30-day rolling
+  window); fine for standard plans.
+
+## TheirStack: loud guard when the LLM scorer isn't actually on (P0-2)
+
+- **Decision:** `runTheirStackCycle()` emits a loud `::warning::` if `SCORER !== 'llm'`, and
+  `getScorer()` emits a loud `::error::` if `SCORER=llm` but `ANTHROPIC_API_KEY` is missing (was a
+  quiet `console.warn`). README documents the two settings (a *variable* `SCORER=llm` + a *secret*).
+- **Why:** The paid TheirStack query dropped the seniority/precision filter on the premise the LLM
+  judges relevance. But `keywordScorer` never drops a role (`relevant:true` always), so if the LLM
+  isn't live the source stores unfiltered noise — a silent, whole-design-breaking failure. The
+  variable-vs-secret split (SCORER is a repo *variable*, easy to forget) makes this an easy misstep.
+- **Trade-off:** Warns but does not block — a run with the keyword scorer still stores rows (as
+  before); we surface the problem loudly rather than halt. The ATS poller's keyword default is
+  untouched (it must stay free).
+
+## TheirStack: budget guard is now a hard per-run cap, not just a pre-check (P2-2)
+
+- **Decision:** `fetchTheirStackJobs(watermark, maxCredits)` takes the remaining period budget and
+  stops paginating before a page would exceed it (trimming the final page's `limit`), logging a
+  `::warning::` when it truncates. `runTheirStackCycle` passes `budget - used`.
+- **Why:** The guard only refused to *start* an over-budget run; it never limited a run's *size*.
+  With limit 200 × 10 pages a single run could fetch up to 2,000 jobs = 2,000 credits — a backfill
+  started mid-period could sail past the cap in one go. The cap makes overspend structurally
+  impossible.
+- **Trade-off:** A truncated run leaves some matching jobs unfetched this period; they're caught
+  after the next reset (the watermark only advanced over what was actually fetched). Acceptable — a
+  hard money ceiling beats complete coverage in a runaway.
+
+## TheirStack: broad "Software Engineer" titles behind an off-by-default flag (P1)
+
+- **Decision:** `THEIRSTACK_BROAD_TITLES` (default **false**) adds `Software Engineer`,
+  `Software Developer`, `Senior Software Engineer` to the query — A/B-able via env, no code change.
+- **Why:** The base query uses ~22% of the 1,400 budget; the paid tier was bought for recall, and
+  "Software Engineer" is exactly the generic title that hides React roles. But it's also the noisiest,
+  so it's gated: only worth enabling with the LLM strainer confirmed live (else see P0-2).
+- **Trade-off:** More credits and more LLM-rejected rows when on; kept off by default so nothing
+  changes until deliberately enabled. After a week on, report credits/jobs/relevant-count to judge
+  the recall-vs-cost trade with real numbers.
+
+## TheirStack: jobs/search consumes NO company credits — nothing to guard (P2-1)
+
+- **Decision:** No company-credit guard or enrichment-exclusion param added. Instead, log unique
+  companies per run and keep surfacing any credit/quota response headers.
+- **Why:** Verified against the API docs: `jobs/search` bills **1 API credit per job returned and
+  nothing else** — company credits belong to the separate company-search/technographics endpoints.
+  There is **no** parameter to omit `company_object` (only `blur_company_data`, which is the free
+  *preview* blur, useless for ingestion). So the embedded company enrichment is free; the original
+  worry was unfounded.
+- **Trade-off:** None — we can't exclude `company_object` even if we wanted to, but there's no cost
+  to it. The per-run unique-company log gives visibility if TheirStack ever changes billing.
+
 ## TheirStack: credits are per JOB RETURNED — design around incremental fetch
 
 - **Decision:** Add TheirStack as a second, market-wide source with an incremental fetch: each run

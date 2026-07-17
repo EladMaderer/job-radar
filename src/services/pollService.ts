@@ -17,6 +17,7 @@ import {
   updateJobFields,
 } from '../repositories/jobsRepository.js';
 import { SCORE_CONCURRENCY } from '../constants/scoring.js';
+import { billingPeriod } from '../lib/billingPeriod.js';
 import { mapWithConcurrency } from '../lib/concurrency.js';
 import { getScorer } from '../scoring/getScorer.js';
 import { classifyLocation } from '../scoring/location.js';
@@ -160,28 +161,43 @@ export async function runPollCycle(scorer: Scorer = getScorer()): Promise<PollSu
 export async function runTheirStackCycle(scorer: Scorer = getScorer()): Promise<PollSummary> {
   const summary = emptySummary();
 
-  // Accurate credit guard: count actual credits SPENT (jobs returned), tracked in its own table so
-  // it reflects TheirStack's per-returned-job billing and survives re-baselines. Calendar-month
-  // key (UTC) — assumes TheirStack resets on the 1st; adjust if your plan resets on an anniversary.
-  const month = new Date().toISOString().slice(0, 7); // 'YYYY-MM'
-  const usedThisMonth = await theirStackCreditsUsed(month);
-  if (usedThisMonth >= config.THEIRSTACK_MONTHLY_BUDGET) {
+  // Scorer guard: the TheirStack query intentionally has NO seniority/precision filter, on the
+  // premise the LLM scorer judges relevance. The keyword scorer never drops a role, so running this
+  // without SCORER=llm stores unfiltered noise. Warn loudly (GitHub annotation) — don't block.
+  if (config.SCORER !== 'llm') {
     console.warn(
-      `[theirstack] monthly credit budget reached (${usedThisMonth}/${config.THEIRSTACK_MONTHLY_BUDGET} ` +
-        'credits used this month) — skipping run. Resets next month.',
+      '::warning::[theirstack] SCORER is not "llm" — the TheirStack query has no seniority/precision ' +
+        'filter (the LLM is meant to be the strainer), and the keyword scorer NEVER drops a role, so ' +
+        'this run will store UNFILTERED noise. Set repo variable SCORER=llm + the ANTHROPIC_API_KEY secret.',
+    );
+  }
+
+  // Accurate credit guard: count actual credits SPENT (jobs returned), tracked in its own table so
+  // it reflects TheirStack's per-returned-job billing and survives re-baselines. Keyed by BILLING
+  // PERIOD start (plan renews on an anniversary day, not the calendar 1st).
+  const budget = config.THEIRSTACK_MONTHLY_BUDGET;
+  const { start: periodStart, end: periodEnd } = billingPeriod(
+    new Date(),
+    config.THEIRSTACK_BILLING_CYCLE_DAY,
+  );
+  const used = await theirStackCreditsUsed(periodStart);
+  console.log(`[theirstack] credits: ${used}/${budget} for period ${periodStart} → ${periodEnd}`);
+  if (used >= budget) {
+    console.warn(
+      `::warning::[theirstack] credit budget reached (${used}/${budget} for period ${periodStart} → ` +
+        `${periodEnd}) — skipping run. Resets on day ${config.THEIRSTACK_BILLING_CYCLE_DAY}.`,
     );
     logSummary('theirstack', summary);
     return summary;
   }
-  console.log(
-    `[theirstack] budget: ${usedThisMonth}/${config.THEIRSTACK_MONTHLY_BUDGET} credits used this month`,
-  );
 
   const knownSources = await sourcesWithRows();
   const watermark = await latestFirstSeen(THEIRSTACK_SOURCE);
-  const jobs = await fetchTheirStackJobs(watermark);
+  // Hard cap: never fetch more than the credits remaining this period (each returned job = 1 credit).
+  const remaining = budget - used;
+  const jobs = await fetchTheirStackJobs(watermark, remaining);
   // Every returned job cost 1 credit — record it before processing (which filters some out).
-  await addTheirStackCreditsUsed(month, jobs.length);
+  await addTheirStackCreditsUsed(periodStart, jobs.length);
   summary.fetched += jobs.length;
 
   await processJobs(jobs, scorer, summary, knownSources, (job) =>
