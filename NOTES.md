@@ -278,23 +278,23 @@ language so it doubles as an interview script.
   reads the `location` string. Only rows that still have a description (the relevant ones) can be
   re-scored; already-dropped lean rows are gone. A row can flip to irrelevant and drop off.
 
-## Scoring: backend-depth SCORE CAP for full-stack roles (keep, don't drop)
+## Scoring: DROP full-stack roles that REQUIRE backend competence (requirement vs plus)
 
-- **Decision:** A full-stack role where React/RN is present but the role expects PROVEN / SOLID /
-  strong backend competence — "proven experience with Node.js and Express", "5+ years of full-stack
-  development", "strong background in [a backend technology]" — is KEPT (relevant=true) but the LLM
-  caps its score at ~50 (Low band). DROP is reserved for the heavy/quantified cases (3+ years Node,
-  expert/deep backend, DBA-level DB, or backend-primary). High seniority (Staff/Principal/Architect)
-  alone is not a drop reason — the candidate is senior.
-- **Why:** User feedback — an Autofleet "Senior Full Stack Developer" (proven Node/Express + 5-yr
-  full-stack + DB familiarity) scored 78, and a Palo Alto architect role too high. The candidate is
-  frontend-primary with light backend, so these are stretch fits that should rank low but stay
-  visible ("a bit too much, just a bit"). The prior drop-only rule mis-handled them: it either
-  scored "proven Node" high (missed it) or, once tightened, over-corrected to a full DROP.
-- **Trade-off:** It's a graduated, judgment-based signal (proven → cap ~50; heavy/quantified →
-  drop) with an inherently fuzzy boundary. Only affects NEWLY-scored jobs — rows already stored keep
-  their scores unless re-scored (dedup never re-scores). Verified live: Autofleet 78→48, Palo Alto
-  kept at 50, RN/React controls 92/85, 3+yr-Node and backend-primary drop.
+- **Decision:** A full-stack role is DROPPED (relevant=false) when it states real backend competence
+  as a REQUIREMENT — "proven experience with Node.js/Express", "solid/strong/deep backend", "strong
+  background in [a backend technology]", a multi-year Node/backend requirement, "5+ years of
+  full-stack development", or real database work. It's KEPT and scored normally ONLY when backend is
+  a PLUS / optional / "you'll also touch some Node" / "on the side" / a light secondary part, with
+  React/RN primary. The single discriminator is REQUIREMENT vs PLUS.
+- **Why:** User feedback, iterated. First pass capped these at ~50 and kept them visible; the user
+  then said the Autofleet "Senior Full Stack Developer" (proven Node/Express + 5-yr full-stack + DB
+  familiarity) should be GONE, not just ranked low — a role that requires backend proficiency
+  filters out a frontend-primary candidate, so it's not a real fit. Cap → drop.
+- **Trade-off:** Aggressive by design ("when unsure, lean DROP"), so an occasional React-primary
+  role that lists Node in a requirements bullet without "plus" framing may be dropped. Acceptable —
+  the candidate wants only genuine frontend-first roles. Only affects NEWLY-scored jobs; run
+  `npm run rescore` to apply it to what's already stored. Verified live: Autofleet & Palo Alto drop;
+  RN/React with Node-as-a-plus keep at 92/88; pure React keeps at 78.
 
 ## TheirStack: credit guard keyed by billing period, not calendar month (P0-1)
 
