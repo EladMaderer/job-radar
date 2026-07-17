@@ -28,6 +28,13 @@ const CURATED_COMPANIES: Company[] = [
   { name: 'DoubleVerify', ats: 'greenhouse', slug: 'doubleverify' },
   { name: 'Cloudinary', ats: 'lever', slug: 'cloudinary' },
   // Israeli tech companies — verified to have live boards with Israel-based roles.
+  // Batch verified 2026-07-16: probed the live board API, kept only boards returning jobs
+  // whose text mentions Israel/Israeli cities.
+  { name: 'Vonage', ats: 'greenhouse', slug: 'vonage' },
+  { name: 'Bringg', ats: 'greenhouse', slug: 'bringg' },
+  { name: 'Cybereason', ats: 'greenhouse', slug: 'cybereason' },
+  { name: 'BigID', ats: 'greenhouse', slug: 'bigid' },
+  { name: 'Imubit', ats: 'greenhouse', slug: 'imubit' },
   { name: 'Cato Networks', ats: 'greenhouse', slug: 'catonetworks' },
   { name: 'Taboola', ats: 'greenhouse', slug: 'taboola' },
   { name: 'AppsFlyer', ats: 'greenhouse', slug: 'appsflyer' },

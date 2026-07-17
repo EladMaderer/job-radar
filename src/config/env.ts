@@ -30,9 +30,9 @@ const envSchema = z.object({
   // Free tier bills 1 API credit PER JOB RETURNED, so these knobs are a credit budget:
   THEIRSTACK_API_KEY: z.string().optional(),
   THEIRSTACK_MAX_AGE_DAYS: z.coerce.number().int().positive().default(14), // posted_at sanity cap
-  THEIRSTACK_LIMIT: z.coerce.number().int().min(1).max(25).default(25), // free plan caps pages at 25
-  THEIRSTACK_MAX_PAGES: z.coerce.number().int().min(1).max(5).default(5), // free-tier max; <=125 jobs/run (covers a 30-day backfill)
-  THEIRSTACK_MONTHLY_BUDGET: z.coerce.number().int().positive().default(180), // jobs (~credits)/month
+  THEIRSTACK_LIMIT: z.coerce.number().int().min(1).max(500).default(200), // paid tier allows up to 500/page
+  THEIRSTACK_MAX_PAGES: z.coerce.number().int().min(1).max(20).default(10), // <=2000 jobs/run (covers a 60-day backfill)
+  THEIRSTACK_MONTHLY_BUDGET: z.coerce.number().int().positive().default(1400), // credits/month (paid: 1500 + 200 base)
 });
 
 export type Config = z.infer<typeof envSchema>;

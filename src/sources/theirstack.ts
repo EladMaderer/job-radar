@@ -4,7 +4,6 @@ import {
   THEIRSTACK_COUNTRY_CODES,
   THEIRSTACK_FIRST_RUN_MAX_AGE_DAYS,
   THEIRSTACK_JOB_TITLES,
-  THEIRSTACK_SENIORITIES,
   THEIRSTACK_WATERMARK_OVERLAP_MS,
 } from '../constants/theirstack.js';
 import { COMPANIES } from '../registry/companies.js';
@@ -133,8 +132,9 @@ export async function fetchTheirStackJobs(watermark: Date | null): Promise<Job[]
   const body: Record<string, unknown> = {
     job_title_or: THEIRSTACK_JOB_TITLES,
     job_country_code_or: THEIRSTACK_COUNTRY_CODES,
-    job_seniority_or: THEIRSTACK_SENIORITIES,
-    // First run (no watermark) = silent baseline seed: keep the paid window short.
+    // No seniority pre-filter: TheirStack's tags are unreliable (it mislabels senior roles), and
+    // the LLM scorer judges seniority far better — it already drops junior/intern roles.
+    // First run (no watermark) uses the wider backfill window; ongoing runs use the 14-day cap.
     posted_at_max_age_days: watermark
       ? config.THEIRSTACK_MAX_AGE_DAYS
       : THEIRSTACK_FIRST_RUN_MAX_AGE_DAYS,

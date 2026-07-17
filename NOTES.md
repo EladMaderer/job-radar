@@ -245,6 +245,25 @@ language so it doubles as an interview script.
 - **Trade-off:** One extra column and a per-cycle "pending" query (indexed, trivial). Baseline
   seed and pre-existing rows are backfilled `alerted_at = now()` so they never ping retroactively.
 
+## TheirStack: switched to the PAID tier — tuned for recall, not budget (2026-07)
+
+- **Decision:** Subscribed to the paid API tier (1,500 credits/month + 200 base, ~$47 with 20%
+  off; credits roll over 12 months). Reconfigured for coverage: **dropped the seniority
+  pre-filter**, **broadened the title list** (React/frontend-focused, RN-weighted; + Fullstack,
+  Web, UI, Mobile — still not bare "Software Engineer"), **cron every 2h** (Sun–Thu 08:00–18:00,
+  Fri 08:00–12:00, no Sat), **60-day backfill**, bigger pages (limit 200, up to 20 pages), overlap
+  trimmed 1h→30m, and the credit guard raised to 1,400.
+- **Why:** The free tier forced compromises that missed real roles (the Clover Senior Frontend
+  Engineer). Measured (blurred probes): broader titles + no seniority filter ≈ 334 credits/month —
+  ~22% of 1,500. TheirStack's seniority tags are unreliable (it mislabels senior roles), so the LLM
+  scorer — which already drops juniors and weights React Native highest — is the better judge.
+  Cadence is nearly free (watermark), so every 2h just means fresher alerts.
+- **Trade-off:** Paying permanently ends free-tier eligibility (their policy: "the free plan is
+  only for users who have never paid") — so this is a keep-until-you-land decision, not reversible.
+  Broader titles pull some native-mobile/backend-web noise, but the frontend pre-filter drops it
+  for free and the LLM filters the rest. The notes below document the earlier free-tier design and
+  are kept for history — several of their budget constraints no longer apply.
+
 ## TheirStack: credits are per JOB RETURNED — design around incremental fetch
 
 - **Decision:** Add TheirStack as a second, market-wide source with an incremental fetch: each run
