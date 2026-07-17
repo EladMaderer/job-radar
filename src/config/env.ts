@@ -32,7 +32,7 @@ const envSchema = z.object({
   THEIRSTACK_MAX_AGE_DAYS: z.coerce.number().int().positive().default(14), // posted_at sanity cap
   THEIRSTACK_LIMIT: z.coerce.number().int().min(1).max(500).default(200), // paid tier allows up to 500/page
   THEIRSTACK_MAX_PAGES: z.coerce.number().int().min(1).max(20).default(10), // <=2000 jobs/run (covers a 60-day backfill)
-  THEIRSTACK_MONTHLY_BUDGET: z.coerce.number().int().positive().default(1400), // credits per BILLING PERIOD (paid: 1500 + 200 base)
+  THEIRSTACK_PERIOD_BUDGET: z.coerce.number().int().positive().default(1400), // credits per BILLING PERIOD (paid: 1500 + 200 base)
   // Day of month the TheirStack plan renews (paid billing is anniversary-based, not calendar-month).
   THEIRSTACK_BILLING_CYCLE_DAY: z.coerce.number().int().min(1).max(28).default(16),
   // Add bare "Software Engineer"-style titles to the query. OFF by default — only turn on once the

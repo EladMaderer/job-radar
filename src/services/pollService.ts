@@ -175,7 +175,7 @@ export async function runTheirStackCycle(scorer: Scorer = getScorer()): Promise<
   // Accurate credit guard: count actual credits SPENT (jobs returned), tracked in its own table so
   // it reflects TheirStack's per-returned-job billing and survives re-baselines. Keyed by BILLING
   // PERIOD start (plan renews on an anniversary day, not the calendar 1st).
-  const budget = config.THEIRSTACK_MONTHLY_BUDGET;
+  const budget = config.THEIRSTACK_PERIOD_BUDGET;
   const { start: periodStart, end: periodEnd } = billingPeriod(
     new Date(),
     config.THEIRSTACK_BILLING_CYCLE_DAY,
