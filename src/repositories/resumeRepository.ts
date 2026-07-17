@@ -15,6 +15,7 @@ export interface ResumeRow {
   css: string | null;
   fontLinks: string[];
   captureMessages: ChatMsg[];
+  context: string | null; // private real-experience notes; guides tailoring, never shown
   uploadedAt: Date;
   capturedAt: Date | null;
   approvedAt: Date | null;
@@ -28,13 +29,14 @@ interface RawRow {
   css: string | null;
   font_links: string[];
   capture_messages: ChatMsg[];
+  context: string | null;
   uploaded_at: Date;
   captured_at: Date | null;
   approved_at: Date | null;
 }
 
 const META_COLUMNS = `filename, page_count, page_size, content, css, font_links, capture_messages,
-       uploaded_at, captured_at, approved_at`;
+       context, uploaded_at, captured_at, approved_at`;
 
 function mapRow(r: RawRow): ResumeRow {
   return {
@@ -45,6 +47,7 @@ function mapRow(r: RawRow): ResumeRow {
     css: r.css,
     fontLinks: r.font_links,
     captureMessages: r.capture_messages,
+    context: r.context,
     uploadedAt: r.uploaded_at,
     capturedAt: r.captured_at,
     approvedAt: r.approved_at,
@@ -107,4 +110,10 @@ export async function saveCapture(
 
 export async function approveCapture(): Promise<void> {
   await pool.query('UPDATE resume SET approved_at = now() WHERE id = 1');
+}
+
+/** Save the private context notes (real experience beyond what the resume says). Preserved across
+ * re-uploads — it describes the candidate, not the file. */
+export async function saveContext(context: string): Promise<void> {
+  await pool.query('UPDATE resume SET context = $1 WHERE id = 1', [context]);
 }

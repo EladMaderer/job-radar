@@ -54,6 +54,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         company: job.company,
         title: job.title,
         resumeContent: resume?.content ?? null,
+        context: resume?.context ?? null,
       });
       await upsertPrep(id, job.company, job.title, content);
       const saved = await getPrep(id);

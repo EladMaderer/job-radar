@@ -4,6 +4,7 @@ import {
   approveCapture,
   getResume,
   getResumePdf,
+  saveContext,
   upsertResume,
   type ResumeRow,
 } from '../src/repositories/resumeRepository.js';
@@ -15,7 +16,8 @@ import { MAX_CAPTURE_PAGES } from '../src/constants/resume.js';
  * GET  /api/resume        -> { resume: meta | null } (meta includes server-rendered preview html)
  * GET  /api/resume?pdf=1  -> the original PDF bytes (for client-side page re-rendering)
  * PUT  /api/resume        -> upload/replace { filename, dataBase64, pageCount, pageSize }
- * PATCH /api/resume       -> { approved: true } marks the capture as user-approved
+ * PATCH /api/resume       -> { approved: true } marks the capture approved, or { context: string }
+ *                            saves the private real-experience notes
  */
 
 /** Serialize the row for the client; renders the preview HTML when a capture exists. */
@@ -29,6 +31,7 @@ export function toClientResume(row: ResumeRow) {
     capturedAt: row.capturedAt,
     approvedAt: row.approvedAt,
     captureMessages: row.captureMessages,
+    context: row.context,
     html: captured ? renderResumeHtml(row.content!, row.css!, row.fontLinks, row.pageSize) : null,
   };
 }
@@ -93,12 +96,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     }
 
     if (req.method === 'PATCH') {
-      const body = req.body as { approved?: boolean } | undefined;
-      if (body?.approved !== true) {
-        res.status(400).json({ error: 'Expected { approved: true }' });
+      const body = req.body as { approved?: boolean; context?: string } | undefined;
+      if (typeof body?.context === 'string') {
+        await saveContext(body.context);
+      } else if (body?.approved === true) {
+        await approveCapture();
+      } else {
+        res.status(400).json({ error: 'Expected { approved: true } or { context: string }' });
         return;
       }
-      await approveCapture();
       const row = await getResume();
       res.status(200).json({ resume: row ? toClientResume(row) : null });
       return;

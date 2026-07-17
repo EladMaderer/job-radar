@@ -20,6 +20,7 @@ export interface TailorArgs {
   company: string;
   title: string;
   baseContent: ResumeContent; // the captured original — never mutated
+  context: string | null; // private real-experience notes to calibrate honesty
   currentContent: ResumeContent | null; // latest tailored version; null on first generate
   history: ChatMsg[];
   message: string | null; // null = initial generate
@@ -41,7 +42,10 @@ export function createResumeTailor(apiKey: string) {
           role: 'user',
           content:
             `JOB: ${args.title} at ${args.company}\n\nJOB DESCRIPTION:\n${args.jobDescription}\n\n` +
-            `BASE RESUME (JSON):\n${JSON.stringify(args.baseContent)}`,
+            `BASE RESUME (JSON):\n${JSON.stringify(args.baseContent)}` +
+            (args.context
+              ? `\n\nPRIVATE CANDIDATE CONTEXT (real experience, NOT shown on the resume):\n${args.context}`
+              : ''),
         },
         ...args.history.map((m): Anthropic.MessageParam => ({ role: m.role, content: m.text })),
         {

@@ -726,3 +726,21 @@ tr.row-link:hover {
     grid-template-columns: 1fr;
   }
 }
+
+/* Private context editor on the CV page */
+.context-panel .context-input {
+  width: 100%;
+  min-height: 90px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 0.55rem 0.7rem;
+  font-size: 0.85rem;
+  font-family: inherit;
+  resize: vertical;
+  margin-bottom: 0.5rem;
+}
+.context-panel em {
+  color: var(--muted);
+}

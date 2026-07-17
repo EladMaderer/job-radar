@@ -57,3 +57,13 @@ export async function approveResume(): Promise<ResumeMeta | null> {
     }),
   );
 }
+
+export async function saveResumeContext(context: string): Promise<ResumeMeta | null> {
+  return readResume(
+    await authFetch('/api/resume', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ context }),
+    }),
+  );
+}

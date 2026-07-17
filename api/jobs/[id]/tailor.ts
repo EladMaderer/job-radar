@@ -114,6 +114,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         company,
         title,
         baseContent: resume.content,
+        context: resume.context,
         currentContent: existing?.content ?? null,
         history: existing?.messages ?? [],
         message,

@@ -21,6 +21,7 @@ export function createInterviewPrep(apiKey: string) {
       company: string;
       title: string;
       resumeContent: ResumeContent | null;
+      context: string | null;
     }): Promise<string> {
       const parts = [
         `JOB: ${args.title} at ${args.company}`,
@@ -28,6 +29,9 @@ export function createInterviewPrep(apiKey: string) {
       ];
       if (args.resumeContent) {
         parts.push(`CANDIDATE RESUME (context):\n${JSON.stringify(args.resumeContent)}`);
+      }
+      if (args.context) {
+        parts.push(`PRIVATE CONTEXT — the candidate's real depth of experience:\n${args.context}`);
       }
       const message = await client.messages.create({
         model: PREP_MODEL,

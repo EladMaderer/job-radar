@@ -59,6 +59,7 @@ export interface ResumeMeta {
   capturedAt: string | null;
   approvedAt: string | null;
   captureMessages: ChatMsg[];
+  context: string | null; // private real-experience notes; guides tailoring, never shown
   html: string | null; // server-rendered preview; null until captured
 }
 

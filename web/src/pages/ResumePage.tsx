@@ -2,7 +2,13 @@ import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AuthError } from '../auth.js';
 import { useAuth } from '../AuthContext.js';
-import { approveResume, captureResume, fetchResume, fetchResumePdfBytes } from '../resumeApi.js';
+import {
+  approveResume,
+  captureResume,
+  fetchResume,
+  fetchResumePdfBytes,
+  saveResumeContext,
+} from '../resumeApi.js';
 import { renderPages, extractText, type RenderedPage } from '../lib/pdf.js';
 import { ResumePreview } from '../components/ResumePreview.js';
 import type { ResumeMeta } from '../types.js';
@@ -23,6 +29,12 @@ export function ResumePage() {
   const [error, setError] = useState<string | null>(null);
   const loadedFor = useRef<string | null>(null);
 
+  // Private real-experience context (guides tailoring; never shown on the resume).
+  const [context, setContext] = useState('');
+  const [contextDirty, setContextDirty] = useState(false);
+  const [contextSaved, setContextSaved] = useState(false);
+  const [savingContext, setSavingContext] = useState(false);
+
   const onErr = (err: unknown) => {
     if (err instanceof AuthError) logout('Your session expired — sign in again.');
     else setError(err instanceof Error ? err.message : String(err));
@@ -32,6 +44,11 @@ export function ResumePage() {
     fetchResume().then(setResume).catch(onErr);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Seed the context editor from the saved value (don't clobber unsaved edits).
+  useEffect(() => {
+    if (resume && !contextDirty) setContext(resume.context ?? '');
+  }, [resume, contextDirty]);
 
   // Render the original PDF's page images once per uploaded file (for the side-by-side + capture).
   useEffect(() => {
@@ -79,6 +96,21 @@ export function ResumePage() {
     }
   }
 
+  async function saveContextNotes() {
+    setSavingContext(true);
+    setError(null);
+    try {
+      setResume(await saveResumeContext(context));
+      setContextDirty(false);
+      setContextSaved(true);
+      window.setTimeout(() => setContextSaved(false), 2500);
+    } catch (err) {
+      onErr(err);
+    } finally {
+      setSavingContext(false);
+    }
+  }
+
   if (resume === undefined) return <div className="state-msg">loading…</div>;
   if (resume === null) {
     return (
@@ -105,6 +137,38 @@ export function ResumePage() {
       </div>
 
       {error && <div className="state-msg error">{error}</div>}
+
+      <section className="panel context-panel">
+        <h3>Private context — your real experience</h3>
+        <p className="muted">
+          Notes about your actual depth of experience (things the resume doesn’t capture, or
+          overstates). The AI uses this to tailor honestly — so a role never gets a claim you can’t
+          defend. e.g.{' '}
+          <em>
+            “Resume says full-stack, but my backend is mostly theoretical with a little practical.”
+          </em>{' '}
+          This is <b>private</b> — it never appears on your resume or any tailored version.
+        </p>
+        <textarea
+          className="context-input"
+          placeholder="What should the AI know about your real experience?"
+          value={context}
+          onChange={(e) => {
+            setContext(e.target.value);
+            setContextDirty(true);
+          }}
+        />
+        <div className="chat-actions">
+          <button
+            className="secondary-btn"
+            disabled={savingContext || !contextDirty}
+            onClick={saveContextNotes}
+          >
+            {savingContext ? 'Saving…' : 'Save context'}
+          </button>
+          {contextSaved && <span className="ok-badge">saved ✓</span>}
+        </div>
+      </section>
 
       <p className="muted">
         We reconstruct your PDF’s design once so each tailored resume keeps the exact look. Compare

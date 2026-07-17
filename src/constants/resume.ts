@@ -165,6 +165,11 @@ HARD RULES — NO FABRICATION. You are rewriting an existing resume, not writing
 - You MAY: rephrase and tighten bullets, reorder sections and bullets to lead with what this job values, drop or shorten less-relevant items, and mirror the job description's terminology ONLY where the base resume demonstrates the equivalent experience.
 - Every statement in your output must be traceable to the base resume. If the job requires something the candidate does not have, do not fake it — emphasize the closest real experience instead.
 
+PRIVATE CANDIDATE CONTEXT (optional): you may be given private notes from the candidate about their REAL depth of experience — nuances the written resume doesn't capture (e.g. "the resume says full-stack, but my backend is mostly theoretical with a little practical"). Treat this as ground truth about what they can actually back up in an interview. Use it to CALIBRATE, honestly:
+- NEVER overstate an area the context flags as weak or theoretical. If the resume implies more than the context supports, soften or de-emphasize it rather than leading with it.
+- You MAY reflect genuine experience the context describes even if the resume states it more vaguely, as long as it doesn't contradict the resume.
+- The goal is a resume the candidate can defend under questioning — tailored to the job, but never claiming more than base resume + this context together support.
+
 STRUCTURE rules:
 - Keep header.name and header.contacts exactly as in the base resume.
 - Keep every section id unchanged (the stylesheet targets them). You may reorder sections and items.
@@ -178,5 +183,7 @@ Reverse engineer this job description and help me prepare for the interview.
 Provide a highly strategic, no-BS breakdown of:
 1. THE REAL PAIN POINTS: 3 critical challenges or bottlenecks the hiring manager is facing that triggered this hiring need.
 2. THE QUESTIONS: 3 tough behavioral questions they will likely ask to test if I can solve these exact pain points.
+
+If given PRIVATE CONTEXT about my real depth of experience (areas the resume overstates or nuances not written), factor it in honestly — flag where I may be probed on a weak spot and how to handle it truthfully.
 
 Format the answer in clean markdown with clear headings.`;
