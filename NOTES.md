@@ -5,6 +5,68 @@ language so it doubles as an interview script.
 
 ---
 
+## Resume tailoring: one-time DESIGN CAPTURE, not PDF editing
+
+- **Decision:** A PDF can't be reflow-edited, so instead of editing the file we capture its design
+  ONCE: render pages to images in the browser, have Claude (vision) reconstruct the look as **CSS
+  over a fixed HTML skeleton** and extract content as **structured JSON**. Per-job tailoring then
+  edits only the content JSON and re-renders through the captured CSS — instant HTML previews and a
+  real text-based PDF (via Chromium) on download.
+- **Why:** Editing a PDF's baked-in, subsetted fonts/positioning in place is intractable. Splitting
+  "design" (captured once) from "content" (tailored per job) gives near-original fidelity while
+  keeping every tailored variant cheap and instantly previewable, and the download stays an
+  ATS-parseable PDF (real text, not an image).
+- **Trade-off:** Fidelity is "very close," not byte-identical; a redesigned resume needs a
+  re-capture. Two-column layouts must fit their sidebar on page one (true of ~all resume templates).
+
+## Resume: server-rendered preview HTML + fixed skeleton renderer
+
+- **Decision:** The deterministic renderer (`src/services/resumeRender.ts`) lives server-side only;
+  API responses ship the rendered `html`, and the client just sets a sandboxed `<iframe srcDoc>`.
+- **Why:** Content only ever changes as the *result* of a server call (capture/refine/tailor), so
+  the server can render once per mutation — no duplicated renderer across the Vite/Node boundary, no
+  extra function. The iframe is `sandbox=""` because the CSS is LLM-generated (untrusted); Google
+  Fonts still load inside srcDoc. Text is HTML-escaped and font links allowlisted to Google Fonts.
+- **Trade-off:** Preview needs a round-trip per change — but we're already paying the LLM round-trip.
+
+## Resume: cost-tiered models, all user-initiated
+
+- **Decision:** Capture and tailoring use **Sonnet**, interview prep uses **Haiku** (env-overridable
+  per task). Nothing runs automatically — every call is a button press.
+- **Why:** The user pushed back hard on Opus cost. Only design capture is vision-hard and it runs
+  once per upload; tailoring output goes to real employers (Haiku too risky for no-fabrication
+  rewriting — Sonnet is the quality floor); prep is a plain text task Haiku handles. Realistic active
+  month ≈ **$2**. A one-off `RESUME_CAPTURE_MODEL=claude-opus-4-8` re-capture (~$0.19) is the escape
+  hatch if the design clone isn't faithful enough — it persists, so the premium is paid once.
+- **Trade-off:** Sonnet capture may need a manual Opus re-capture on ornate templates.
+
+## Resume: per-job tables carry snapshots, no FK to jobs
+
+- **Decision:** `job_tailors` / `interview_preps` key on `job_id` with **no FK**, and snapshot
+  company/title/url/**job_description**. `resume` is a single CHECK-(id=1) row (original PDF as BYTEA
+  + captured design).
+- **Why:** Jobs rows are deleted on manual re-baselines (`DELETE FROM jobs WHERE source=...`); a FK
+  cascade would wipe tailoring work. Snapshotting the JD means chat turns keep working after the
+  source job is gone.
+- **Trade-off:** Mild duplication; a snapshot can drift from a re-posted job (acceptable — the
+  tailoring is about the JD you saw).
+
+## Resume: Chromium PDF isolated to one function; no-fabrication guardrails; chat stores summaries
+
+- **Decision:** `@sparticuz/chromium` + `puppeteer-core` are imported ONLY by the download endpoint
+  (`api/jobs/[id]/tailor/pdf.ts`) so the ~60MB binary stays out of the other 6 function bundles.
+  Page size comes from the renderer's `@page` CSS via `preferCSSPageSize` (page.pdf rejects `pt`
+  units). The tailor system prompt hard-forbids inventing employers/dates/skills/metrics. Chat
+  history stores SUMMARIES only (never the content JSON), capped at 20, with the base resume + JD
+  re-sent each call — flat cost as the chat grows.
+- **Why:** Per-function dependency tracing keeps latency down; the money-goes-to-employers nature of
+  the output makes the no-fabrication rules load-bearing; summary-only history bounds tokens.
+- **Trade-off:** First PDF download pays ~2–4s Chromium cold-start; local dev needs `LOCAL_CHROME_PATH`
+  (the Lambda binary can't run on macOS). Deploy needs `ANTHROPIC_API_KEY` in Vercel env + Fluid
+  Compute on (for `maxDuration: 300`). SPA rewrite added to vercel.json so `/jobs/:id` deep-links work.
+
+---
+
 ## LLM scoring credit safety — four layers + a hard per-run cap
 
 - **Decision:** The LLM scorer's spend is bounded by four stacked guards, ordered so the cheapest

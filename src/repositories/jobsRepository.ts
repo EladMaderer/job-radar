@@ -424,6 +424,21 @@ export async function listJobs(
   return { jobs: rows.map(mapJobRow), total };
 }
 
+/** One job with its description — the detail page + AI features need the full text. */
+export interface JobDetail extends JobListItem {
+  description: string | null;
+}
+
+export async function getJobById(id: number): Promise<JobDetail | null> {
+  const { rows } = await pool.query<JobRow & { description: string | null }>(
+    `SELECT ${JOB_ROW_COLUMNS}, description FROM jobs WHERE id = $1`,
+    [id],
+  );
+  const r = rows[0];
+  if (!r) return null;
+  return { ...mapJobRow(r), description: r.description };
+}
+
 /** Update a job's status (user-owned in the dashboard). Returns the updated row, or null if no
  * such job exists. The poller never writes status, so this is the only place it changes. */
 export async function updateStatus(id: number, status: JobStatus): Promise<JobListItem | null> {

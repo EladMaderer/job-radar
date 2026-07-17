@@ -2,6 +2,11 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { parse } from 'node:url';
 import jobsHandler from '../api/jobs.js';
 import jobByIdHandler from '../api/jobs/[id].js';
+import resumeHandler from '../api/resume.js';
+import resumeCaptureHandler from '../api/resume/capture.js';
+import tailorHandler from '../api/jobs/[id]/tailor.js';
+import tailorPdfHandler from '../api/jobs/[id]/tailor/pdf.js';
+import prepHandler from '../api/jobs/[id]/prep.js';
 
 /**
  * Local-only dev server for the Vercel API functions. Vercel has no free offline runner without
@@ -50,20 +55,41 @@ const server = createServer((req, res) => {
     const { pathname, query } = parse(req.url ?? '', true);
     const path = pathname ?? '';
     const body = req.method === 'GET' ? undefined : await readJsonBody(req);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const run = (h: any, q: Record<string, string | string[]>) => {
+      const { vreq, vres } = adapt(req, res, q, body);
+      return h(vreq as never, vres as never) as Promise<void>;
+    };
+    const q = query as Record<string, string | string[]>;
 
-    // /api/jobs/:id  (dynamic route)
-    const idMatch = /^\/api\/jobs\/([^/]+)$/.exec(path);
-    if (idMatch) {
-      const { vreq, vres } = adapt(req, res, { ...query, id: idMatch[1]! }, body);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await jobByIdHandler(vreq as any, vres as any);
+    // Job-scoped subroutes (most specific first).
+    let m: RegExpExecArray | null;
+    if ((m = /^\/api\/jobs\/([^/]+)\/tailor\/pdf$/.exec(path))) {
+      await run(tailorPdfHandler, { ...q, id: m[1]! });
       return;
     }
-
+    if ((m = /^\/api\/jobs\/([^/]+)\/tailor$/.exec(path))) {
+      await run(tailorHandler, { ...q, id: m[1]! });
+      return;
+    }
+    if ((m = /^\/api\/jobs\/([^/]+)\/prep$/.exec(path))) {
+      await run(prepHandler, { ...q, id: m[1]! });
+      return;
+    }
+    if ((m = /^\/api\/jobs\/([^/]+)$/.exec(path))) {
+      await run(jobByIdHandler, { ...q, id: m[1]! });
+      return;
+    }
     if (path === '/api/jobs') {
-      const { vreq, vres } = adapt(req, res, query as Record<string, string | string[]>, body);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await jobsHandler(vreq as any, vres as any);
+      await run(jobsHandler, q);
+      return;
+    }
+    if (path === '/api/resume/capture') {
+      await run(resumeCaptureHandler, q);
+      return;
+    }
+    if (path === '/api/resume') {
+      await run(resumeHandler, q);
       return;
     }
 
