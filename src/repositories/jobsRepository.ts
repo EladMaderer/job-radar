@@ -20,13 +20,27 @@ export async function sourcesWithRows(): Promise<Set<string>> {
   return new Set(rows.map((r) => r.source));
 }
 
-/** Rows first seen for `source` since `since` — the TheirStack monthly credit-budget meter. */
-export async function countJobsSince(source: string, since: Date): Promise<number> {
-  const { rows } = await pool.query<{ count: number }>(
-    'SELECT count(*)::int AS count FROM jobs WHERE source = $1 AND first_seen_at >= $2',
-    [source, since],
+/**
+ * TheirStack credits consumed in `month` ('YYYY-MM' UTC). This is the accurate credit meter:
+ * TheirStack bills per job RETURNED (not stored) and its balance doesn't reset when we delete rows,
+ * so this lives in its own table and survives re-baselines — unlike counting job rows.
+ */
+export async function theirStackCreditsUsed(month: string): Promise<number> {
+  const { rows } = await pool.query<{ credits: number }>(
+    'SELECT credits FROM theirstack_usage WHERE month = $1',
+    [month],
   );
-  return rows[0]?.count ?? 0;
+  return rows[0]?.credits ?? 0;
+}
+
+/** Add `credits` (= jobs returned by a run) to the running total for `month`. */
+export async function addTheirStackCreditsUsed(month: string, credits: number): Promise<void> {
+  if (credits <= 0) return;
+  await pool.query(
+    `INSERT INTO theirstack_usage (month, credits) VALUES ($1, $2)
+     ON CONFLICT (month) DO UPDATE SET credits = theirstack_usage.credits + EXCLUDED.credits`,
+    [month, credits],
+  );
 }
 
 /**
@@ -296,7 +310,9 @@ export async function listJobs(
     // Hide stale postings (evergreen reqs open for months/years). Rows with an unknown post date
     // are kept — we can't judge their age, and dropping them would hide possibly-fresh jobs.
     params.push(filters.maxAgeDays);
-    where.push(`(posted_at IS NULL OR posted_at >= now() - make_interval(days => $${params.length}::int))`);
+    where.push(
+      `(posted_at IS NULL OR posted_at >= now() - make_interval(days => $${params.length}::int))`,
+    );
   }
 
   const whereSql = where.length > 0 ? `WHERE ${where.join(' AND ')}` : '';

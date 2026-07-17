@@ -4,7 +4,7 @@ import { MAX_ALERTS_PER_CYCLE, TELEGRAM_SEND_GAP_MS } from '../constants/message
 import { getNotifier } from '../notify/index.js';
 import { adapterFor, COMPANIES } from '../registry/companies.js';
 import {
-  countJobsSince,
+  addTheirStackCreditsUsed,
   countPendingAlerts,
   existsSimilarJob,
   findExistingExternalIds,
@@ -13,6 +13,7 @@ import {
   latestFirstSeen,
   markAlerted,
   sourcesWithRows,
+  theirStackCreditsUsed,
   updateJobFields,
 } from '../repositories/jobsRepository.js';
 import { SCORE_CONCURRENCY } from '../constants/scoring.js';
@@ -159,25 +160,28 @@ export async function runPollCycle(scorer: Scorer = getScorer()): Promise<PollSu
 export async function runTheirStackCycle(scorer: Scorer = getScorer()): Promise<PollSummary> {
   const summary = emptySummary();
 
-  const monthStart = new Date();
-  monthStart.setUTCDate(1);
-  monthStart.setUTCHours(0, 0, 0, 0);
-  const usedThisMonth = await countJobsSince(THEIRSTACK_SOURCE, monthStart);
+  // Accurate credit guard: count actual credits SPENT (jobs returned), tracked in its own table so
+  // it reflects TheirStack's per-returned-job billing and survives re-baselines. Calendar-month
+  // key (UTC) — assumes TheirStack resets on the 1st; adjust if your plan resets on an anniversary.
+  const month = new Date().toISOString().slice(0, 7); // 'YYYY-MM'
+  const usedThisMonth = await theirStackCreditsUsed(month);
   if (usedThisMonth >= config.THEIRSTACK_MONTHLY_BUDGET) {
     console.warn(
-      `[theirstack] monthly budget reached (${usedThisMonth}/${config.THEIRSTACK_MONTHLY_BUDGET} ` +
-        'jobs stored this month) — skipping run. Resets on the 1st.',
+      `[theirstack] monthly credit budget reached (${usedThisMonth}/${config.THEIRSTACK_MONTHLY_BUDGET} ` +
+        'credits used this month) — skipping run. Resets next month.',
     );
     logSummary('theirstack', summary);
     return summary;
   }
   console.log(
-    `[theirstack] budget: ${usedThisMonth}/${config.THEIRSTACK_MONTHLY_BUDGET} jobs used this month`,
+    `[theirstack] budget: ${usedThisMonth}/${config.THEIRSTACK_MONTHLY_BUDGET} credits used this month`,
   );
 
   const knownSources = await sourcesWithRows();
   const watermark = await latestFirstSeen(THEIRSTACK_SOURCE);
   const jobs = await fetchTheirStackJobs(watermark);
+  // Every returned job cost 1 credit — record it before processing (which filters some out).
+  await addTheirStackCreditsUsed(month, jobs.length);
   summary.fetched += jobs.length;
 
   await processJobs(jobs, scorer, summary, knownSources, (job) =>

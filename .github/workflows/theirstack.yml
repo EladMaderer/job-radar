@@ -5,9 +5,11 @@ name: theirstack
 # is deliberately sparse. The 30-min ATS poll workflow is separate and unaffected.
 on:
   schedule:
-    # 5 runs/day, Sun–Fri (skips Saturday). Cadence itself is nearly free — credits are only spent
-    # on genuinely-new jobs thanks to the watermark; the in-code monthly budget guard is the cap.
-    - cron: '0 4,8,12,16,20 * * 0-5'
+    # Times are Israel-local, anchored to summer (IDT = UTC+3); GitHub cron is UTC-only and can't
+    # follow DST, so in winter (IST = UTC+2) these fire ~1h earlier Israel time — fine for polling.
+    # Credits are only spent on genuinely-new jobs (watermark); the in-code monthly guard is the cap.
+    - cron: '0 6,14 * * 0-4' # Sun–Thu, 09:00 & 17:00 Israel
+    - cron: '0 11 * * 5' # Fri, 14:00 Israel (Saturday: no run)
   workflow_dispatch: {} # manual trigger for testing / the first baseline seed
 
 concurrency:

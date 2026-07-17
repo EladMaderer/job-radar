@@ -259,6 +259,22 @@ language so it doubles as an interview script.
   permanently (the watermark advances past them) — with the tight filters this needs >100 new
   matching IL jobs in 4h, which the budget guard would be tripping on anyway.
 
+## TheirStack: accurate credit meter (count returned, not stored; survive re-baselines)
+
+- **Decision:** Track credits in a dedicated `theirstack_usage(month, credits)` table, incremented
+  by the number of jobs **returned** each run (= actual credits). The monthly guard reads this,
+  not a count of stored job rows. Keyed by calendar month (UTC); seeded once with the ~167 already
+  spent in 2026-07.
+- **Why:** The original guard counted `jobs` rows first-seen this month — but TheirStack bills per
+  job **returned** (some get location-filtered before storage), and its balance **doesn't reset
+  when we delete rows**. So after the re-baseline the guard read "116/180, plenty" while TheirStack
+  was actually at 167/200 and emailed a 70%-usage warning. Counting returned jobs in a table that
+  survives deletes fixes both blind spots.
+- **Trade-off:** Assumes TheirStack resets on the calendar 1st; if the plan resets on a signup
+  anniversary the meter can be off near the boundary (over-conservative = lose some coverage, which
+  is the safe direction). A run that partially fails mid-pagination under-counts slightly. The
+  reconciliation seed (167) is approximate — small drift vs the real balance is acceptable.
+
 ## TheirStack: first-run window is 30 days (capture the open backlog, not just fresh posts)
 
 - **Decision:** The first run (fresh seed / no watermark yet) uses a **33-day** posted-age window
