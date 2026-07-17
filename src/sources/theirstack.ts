@@ -1,5 +1,5 @@
 import { config } from '../config/env.js';
-import { HTTP_TIMEOUT_MS, USER_AGENT } from '../constants/http.js';
+import { HTTP_TIMEOUT_MS, USER_AGENT, withRetry } from '../constants/http.js';
 import {
   THEIRSTACK_COUNTRY_CODES,
   THEIRSTACK_FIRST_RUN_MAX_AGE_DAYS,
@@ -81,35 +81,43 @@ function toJob(raw: TheirStackJob): Job {
   };
 }
 
+/**
+ * One page of results, with timeout + retry (the search runs ~5s but occasionally spikes; a lone
+ * hiccup must not fail the whole run — same resilience the ATS board fetches have). Retrying a
+ * timed-out request is credit-safe: credits are billed per job RETURNED, and an aborted request
+ * returns nothing.
+ */
 async function searchPage(apiKey: string, body: Record<string, unknown>): Promise<TheirStackJob[]> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), HTTP_TIMEOUT_MS);
-  try {
-    const res = await fetch('https://api.theirstack.com/v1/jobs/search', {
-      method: 'POST',
-      headers: {
-        authorization: `Bearer ${apiKey}`,
-        'content-type': 'application/json',
-        'user-agent': USER_AGENT,
-      },
-      body: JSON.stringify(body),
-      signal: controller.signal,
-    });
-    // Burn visibility: surface any rate-limit / credit headers the API exposes.
-    const meterHeaders: string[] = [];
-    res.headers.forEach((v, k) => {
-      if (/ratelimit|credit|quota/i.test(k)) meterHeaders.push(`${k}=${v}`);
-    });
-    if (meterHeaders.length > 0) console.log(`[theirstack] headers: ${meterHeaders.join(' ')}`);
-    if (!res.ok) {
-      const text = await res.text();
-      throw new Error(`TheirStack HTTP ${res.status}: ${text.slice(0, 300)}`);
+  return withRetry(async () => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), HTTP_TIMEOUT_MS);
+    try {
+      const res = await fetch('https://api.theirstack.com/v1/jobs/search', {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${apiKey}`,
+          'content-type': 'application/json',
+          'user-agent': USER_AGENT,
+        },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+      // Burn visibility: surface any rate-limit / credit headers the API exposes.
+      const meterHeaders: string[] = [];
+      res.headers.forEach((v, k) => {
+        if (/ratelimit|credit|quota/i.test(k)) meterHeaders.push(`${k}=${v}`);
+      });
+      if (meterHeaders.length > 0) console.log(`[theirstack] headers: ${meterHeaders.join(' ')}`);
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`TheirStack HTTP ${res.status}: ${text.slice(0, 300)}`);
+      }
+      const parsed = (await res.json()) as TheirStackResponse;
+      return parsed.data ?? [];
+    } finally {
+      clearTimeout(timer);
     }
-    const parsed = (await res.json()) as TheirStackResponse;
-    return parsed.data ?? [];
-  } finally {
-    clearTimeout(timer);
-  }
+  });
 }
 
 /**

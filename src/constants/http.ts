@@ -23,8 +23,8 @@ async function requestOnce(url: string, accept: string): Promise<Response> {
   }
 }
 
-/** Run `fn` with a couple of retries and linear backoff — covers slow/flaky boards. */
-async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
+/** Run `fn` with a couple of retries and linear backoff — covers slow/flaky boards and APIs. */
+export async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
   let lastErr: unknown;
   for (let attempt = 0; attempt <= HTTP_RETRIES; attempt += 1) {
     try {
