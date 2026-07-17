@@ -1,6 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "npm run migrate && cd web && npm ci --no-audit --no-fund && npm run build",
+  "buildCommand": "cd web && npm ci --no-audit --no-fund && npm run build",
   "outputDirectory": "web/dist",
   "framework": null,
   "rewrites": [{ "source": "/((?!api/).*)", "destination": "/index.html" }],
