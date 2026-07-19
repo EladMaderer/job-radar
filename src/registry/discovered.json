@@ -15,6 +15,11 @@
     "slug": "nebius"
   },
   {
+    "name": "Jobgether",
+    "ats": "lever",
+    "slug": "jobgether"
+  },
+  {
     "name": "Astera Labs",
     "ats": "greenhouse",
     "slug": "asteralabs"
@@ -85,11 +90,6 @@
     "slug": "armissecurity"
   },
   {
-    "name": "Speechify",
-    "ats": "greenhouse",
-    "slug": "speechify"
-  },
-  {
     "name": "Via",
     "ats": "greenhouse",
     "slug": "via"
@@ -98,6 +98,11 @@
     "name": "Forter",
     "ats": "greenhouse",
     "slug": "forter"
+  },
+  {
+    "name": "Fireblocks",
+    "ats": "greenhouse",
+    "slug": "fireblocks"
   },
   {
     "name": "Tenable, Inc.",
@@ -110,14 +115,9 @@
     "slug": "transmitsecurity"
   },
   {
-    "name": "Datarails",
+    "name": "Wolt - English",
     "ats": "greenhouse",
-    "slug": "datarails"
-  },
-  {
-    "name": "Fireblocks",
-    "ats": "greenhouse",
-    "slug": "fireblocks"
+    "slug": "wolt"
   },
   {
     "name": "QuantHealth",
@@ -130,9 +130,9 @@
     "slug": "unframe"
   },
   {
-    "name": "Wolt - English",
+    "name": "Datarails",
     "ats": "greenhouse",
-    "slug": "wolt"
+    "slug": "datarails"
   },
   {
     "name": "Mixtiles",
@@ -143,6 +143,11 @@
     "name": "MongoDB",
     "ats": "greenhouse",
     "slug": "mongodb"
+  },
+  {
+    "name": "Speechify",
+    "ats": "greenhouse",
+    "slug": "speechify"
   },
   {
     "name": "Tipalti",
@@ -160,6 +165,11 @@
     "slug": "cloudinary"
   },
   {
+    "name": "Augury",
+    "ats": "greenhouse",
+    "slug": "augury"
+  },
+  {
     "name": "Axonius",
     "ats": "greenhouse",
     "slug": "axonius"
@@ -168,11 +178,6 @@
     "name": "Melio",
     "ats": "greenhouse",
     "slug": "melio"
-  },
-  {
-    "name": "Augury",
-    "ats": "greenhouse",
-    "slug": "augury"
   },
   {
     "name": "Next Insurance",
@@ -205,11 +210,6 @@
     "slug": "scopely"
   },
   {
-    "name": "Sweet Security",
-    "ats": "greenhouse",
-    "slug": "sweetsecurity"
-  },
-  {
     "name": "WorldQuant",
     "ats": "greenhouse",
     "slug": "worldquant"
@@ -228,6 +228,11 @@
     "name": "Eon",
     "ats": "greenhouse",
     "slug": "eonio"
+  },
+  {
+    "name": "Figma",
+    "ats": "greenhouse",
+    "slug": "figma"
   },
   {
     "name": "Honeycomb Insurance",
@@ -255,6 +260,11 @@
     "slug": "simply"
   },
   {
+    "name": "Sweet Security",
+    "ats": "greenhouse",
+    "slug": "sweetsecurity"
+  },
+  {
     "name": "Triple Whale",
     "ats": "greenhouse",
     "slug": "triplewhale"
@@ -270,6 +280,16 @@
     "slug": "lendbuzz"
   },
   {
+    "name": "Aerospike",
+    "ats": "greenhouse",
+    "slug": "aerospike"
+  },
+  {
+    "name": "Axon",
+    "ats": "greenhouse",
+    "slug": "axon"
+  },
+  {
     "name": "Beamup",
     "ats": "greenhouse",
     "slug": "beamup"
@@ -280,11 +300,6 @@
     "slug": "cyluscybersecurity"
   },
   {
-    "name": "Datadog",
-    "ats": "greenhouse",
-    "slug": "datadog"
-  },
-  {
     "name": "DRW",
     "ats": "greenhouse",
     "slug": "drweng"
@@ -293,11 +308,6 @@
     "name": "Electreon",
     "ats": "greenhouse",
     "slug": "electreon"
-  },
-  {
-    "name": "Figma",
-    "ats": "greenhouse",
-    "slug": "figma"
   },
   {
     "name": "GitLab",
@@ -340,11 +350,6 @@
     "slug": "apiiro"
   },
   {
-    "name": "Axon",
-    "ats": "greenhouse",
-    "slug": "axon"
-  },
-  {
     "name": "BeyondTrust",
     "ats": "greenhouse",
     "slug": "beyondtrust"
@@ -360,6 +365,11 @@
     "slug": "cymulate"
   },
   {
+    "name": "Datadog",
+    "ats": "greenhouse",
+    "slug": "datadog"
+  },
+  {
     "name": "DoiT",
     "ats": "greenhouse",
     "slug": "doitintl"
@@ -368,11 +378,6 @@
     "name": "DoubleVerify",
     "ats": "greenhouse",
     "slug": "doubleverify"
-  },
-  {
-    "name": "Galaxy",
-    "ats": "greenhouse",
-    "slug": "galaxydigitalservices"
   },
   {
     "name": "SafeBreach",
@@ -418,6 +423,11 @@
     "name": "Obligo",
     "ats": "greenhouse",
     "slug": "obligo"
+  },
+  {
+    "name": "Optimove",
+    "ats": "greenhouse",
+    "slug": "optimove"
   },
   {
     "name": "Salt Security",
