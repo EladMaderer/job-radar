@@ -273,6 +273,7 @@ export const JOB_STATUSES = [
   'rejected',
   'interview',
   'not_interested',
+  'halted', // no longer accepting applications — set automatically, overridable by hand
 ] as const;
 export type JobStatus = (typeof JOB_STATUSES)[number];
 
@@ -366,9 +367,9 @@ export async function listJobs(
 ): Promise<{ jobs: JobListItem[]; total: number }> {
   // Only relevant jobs by default. Irrelevant rows are stored purely as dedup memory (so the
   // scorer never re-processes them) and should never appear in the dashboard.
-  // Also hide closed postings ("no longer accepting applications") — closed_at is set by the
-  // TheirStack reconciliation pass and cleared again if a job reopens.
-  const where: string[] = ['relevant = true', 'closed_at IS NULL'];
+  // Postings that stopped accepting applications are NOT hidden — they get status 'halted' so they
+  // stay visible and can be judged (and overridden) by hand.
+  const where: string[] = ['relevant = true'];
   const params: unknown[] = [];
 
   if (filters.status) {
@@ -494,7 +495,7 @@ export interface RecheckRef {
 export async function openJobsToRecheck(source: string, limit: number): Promise<RecheckRef[]> {
   const { rows } = await pool.query<{ external_id: string; url: string }>(
     `SELECT external_id, url FROM jobs
-      WHERE source = $1 AND closed_at IS NULL AND relevant = true
+      WHERE source = $1 AND relevant = true
         AND status IN ('new', 'interested')
       ORDER BY first_seen_at ASC
       LIMIT $2`,
@@ -507,8 +508,8 @@ export async function openJobsToRecheck(source: string, limit: number): Promise<
 export async function closedJobsToRecheck(source: string, limit: number): Promise<RecheckRef[]> {
   const { rows } = await pool.query<{ external_id: string; url: string }>(
     `SELECT external_id, url FROM jobs
-      WHERE source = $1 AND closed_at IS NOT NULL
-      ORDER BY closed_at ASC
+      WHERE source = $1 AND status = 'halted'
+      ORDER BY closed_at ASC NULLS LAST
       LIMIT $2`,
     [source, limit],
   );
@@ -516,15 +517,17 @@ export async function closedJobsToRecheck(source: string, limit: number): Promis
 }
 
 /** Mark jobs closed (hidden from the dashboard). Only flips still-open rows. Returns rows updated. */
-export async function markJobsClosed(
+export async function markJobsHalted(
   source: string,
   entries: { externalId: string; closedAt: Date | null }[],
 ): Promise<number> {
   let updated = 0;
   for (const e of entries) {
+    // Only auto-halt jobs still untouched ('new'/'interested'). Once you've applied/interviewed —
+    // or manually moved a job off 'halted' — your status wins and is never overwritten.
     const { rowCount } = await pool.query(
-      `UPDATE jobs SET closed_at = COALESCE($3, now())
-         WHERE source = $1 AND external_id = $2 AND closed_at IS NULL`,
+      `UPDATE jobs SET status = 'halted', closed_at = COALESCE($3, now())
+         WHERE source = $1 AND external_id = $2 AND status IN ('new', 'interested')`,
       [source, e.externalId, e.closedAt],
     );
     updated += rowCount ?? 0;
@@ -532,12 +535,12 @@ export async function markJobsClosed(
   return updated;
 }
 
-/** Clear closed_at for reopened jobs (they show on the dashboard again). Returns rows updated. */
+/** A halted job started accepting again: back to 'new' so it re-enters the normal flow. */
 export async function markJobsReopened(source: string, externalIds: string[]): Promise<number> {
   if (externalIds.length === 0) return 0;
   const { rowCount } = await pool.query(
-    `UPDATE jobs SET closed_at = NULL
-       WHERE source = $1 AND external_id = ANY($2::text[]) AND closed_at IS NOT NULL`,
+    `UPDATE jobs SET status = 'new', closed_at = NULL
+       WHERE source = $1 AND external_id = ANY($2::text[]) AND status = 'halted'`,
     [source, externalIds],
   );
   return rowCount ?? 0;

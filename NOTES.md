@@ -648,37 +648,22 @@ language so it doubles as an interview script.
 - **Trade-off:** The `.js`-extension-in-TS-imports convention looks odd at first sight, but it's
   spec-correct and `tsc`/`tsx` both enforce/support it.
 
-## Hiding closed TheirStack jobs ("no longer accepting applications")
+## Jobs that stop accepting applications -> `halted` status
 
-- **Decision:** Two-part. (1) Add `is_closed: false` to the TheirStack search so already-closed
-  postings never enter. (2) A reconciliation pass in the TheirStack cycle re-checks the closure
-  state of stored jobs: still-open jobs the user hasn't acted on (`new`/`interested`) that TheirStack
-  now reports closed get a `closed_at` timestamp (migration 011) and are hidden from the dashboard
-  (`closed_at IS NULL` in the list query); any previously-closed job that reopens has the flag cleared
-  and returns.
-- **Why:** The fetch is incremental (`discovered_at` watermark), so a job that closes *after* we
-  store it is never re-fetched — the fetch filter alone can't retire it. Reconciliation checks state
-  directly. It's credit-cheap: TheirStack bills per job *returned*, and we query BY `is_closed` state
-  (`job_id_or` + `is_closed`), so a pass only spends credits for jobs that actually changed state
-  (checking 100 still-open jobs returns 0, costs 0). Bounded per direction by `THEIRSTACK_RECONCILE_MAX`
-  and by credits remaining this period, so it can never overshoot budget.
-- **Trade-off:** Only `new`/`interested` jobs are auto-hidden — once you've `applied`/`interview`,
-  a posting closing is expected and we keep tracking it, so those never auto-hide. Closed jobs are
-  hidden globally (no "show closed" filter yet); add one later if you want to audit them.
-
-### Follow-up: LinkedIn "no longer accepting applications" (the real signal)
-
-- **Problem found:** TheirStack's `closed_at`/`is_closed` only fires when a posting is REMOVED from
-  the source. LinkedIn keeps a post listed while showing "No longer accepting applications", so
-  TheirStack reports it open (`closed_at=null`) — the Step-2 reconciliation caught almost none of the
-  jobs the user was actually seeing as closed.
-- **Decision:** For LinkedIn-hosted postings, read the truth from LinkedIn's PUBLIC guest job page
-  (`/jobs-guest/jobs/api/jobPosting/{id}`, no auth) and look for the "no longer accepting
-  applications" phrase. Reconciliation now routes each job by URL: LinkedIn → LinkedIn page check
-  (free), everything else → TheirStack `closed_at` (credits). LinkedIn job id is parsed from the URL.
-- **Why safe:** any non-200 / block / error → 'unknown', which NEVER hides a job. If GitHub Actions'
-  datacenter IP is blocked, the pass logs "all unknown — IP likely blocked" and does nothing rather
-  than wrongly hiding everything.
-- **Trade-off:** it IS light LinkedIn scraping (public endpoint, ~10 requests/2h, personal use) — a
-  ToS gray area, accepted for a personal tool. Fragile to LinkedIn changing the phrase or blocking
-  the endpoint; both degrade to 'unknown' (jobs stay visible), never to false hides.
+- **Decision:** A posting that is no longer accepting applications gets the job status **`halted`**
+  (migration 012) and stays **visible** on the dashboard, where it can be overridden by hand. It is
+  detected two ways, routed by URL: LinkedIn postings are checked on LinkedIn's public guest page
+  (`src/sources/linkedin.ts`), everything else via TheirStack's `closed_at`. Jobs that start
+  accepting again go back to `new`. The TheirStack fetch also sends `is_closed: false` so
+  already-closed postings never enter at all.
+- **Why:** TheirStack's `closed_at` does NOT reflect LinkedIn's "No longer accepting applications" —
+  measured: all 11 stored jobs had `closed_at=null` while 3 of them were plainly closed on LinkedIn.
+  LinkedIn's public page is the only place that state lives, and it is free to read. The first cut
+  *hid* these rows, but silent disappearance is bad UX and hard to trust — a visible status you can
+  see and correct is better, and it doubles as a manual triage state.
+- **Trade-off:** Only `new`/`interested` jobs are auto-halted — once you've applied/interviewed, or
+  manually moved a job off `halted`, your status wins and is never overwritten. The LinkedIn check
+  returns `unknown` on any block/error and then never halts (fail-open, so a datacenter IP block
+  can't mass-halt the board). GitHub Actions runners may well be blocked by LinkedIn; if the log
+  shows `all unknown — IP likely blocked`, LinkedIn detection is dead there and only TheirStack's
+  weaker `closed_at` signal remains.

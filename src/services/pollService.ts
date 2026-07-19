@@ -13,7 +13,7 @@ import {
   insertJob,
   latestFirstSeen,
   markAlerted,
-  markJobsClosed,
+  markJobsHalted,
   markJobsReopened,
   openJobsToRecheck,
   sourcesWithRows,
@@ -45,8 +45,8 @@ export interface PollSummary {
   suppressed: number; // cross-source duplicates — stored but never alerted
   alerted: number; // alerts actually sent (and marked) this cycle
   failedAlerts: number; // sends that failed — stay pending, retried next cycle
-  closed: number; // stored jobs newly detected as closed (hidden) — TheirStack reconciliation
-  reopened: number; // previously-closed jobs detected open again (un-hidden)
+  halted: number; // jobs newly detected as no longer accepting applications (status -> halted)
+  reopened: number; // halted jobs detected accepting again (status -> new)
   baselineSeeded: string[]; // sources that baseline-seeded silently this cycle
   failedCompanies: string[];
 }
@@ -61,7 +61,7 @@ function emptySummary(): PollSummary {
     suppressed: 0,
     alerted: 0,
     failedAlerts: 0,
-    closed: 0,
+    halted: 0,
     reopened: 0,
     baselineSeeded: [],
     failedCompanies: [],
@@ -226,7 +226,7 @@ export async function runTheirStackCycle(scorer: Scorer = getScorer()): Promise<
     existsSimilarJob(job.company, job.title, THEIRSTACK_SOURCE),
   );
 
-  // Step 2: retire postings that closed after we stored them, and resurface any that reopened.
+  // Step 2: flag postings that stopped accepting applications, and un-flag any accepting again.
   // Uses whatever credits remain this period after the fetch above (each state change = 1 credit).
   await reconcileClosures(summary, periodStart, remaining - jobs.length);
 
@@ -236,11 +236,12 @@ export async function runTheirStackCycle(scorer: Scorer = getScorer()): Promise<
 }
 
 /**
- * Reconcile the closure state of already-stored jobs against the source of truth, routing each by
- * its URL: LinkedIn postings are checked on LinkedIn's public page (the ONLY place its "no longer
- * accepting applications" state lives — TheirStack's closed_at never reflects it), everything else
- * via TheirStack's closed_at. In both, still-open jobs the user hasn't acted on get hidden and any
- * that reopened get resurfaced. Bounded per direction and by credits left, so it can't overshoot.
+ * Reconcile the accepting-applications state of already-stored jobs against the source of truth,
+ * routing each by its URL: LinkedIn postings are checked on LinkedIn's public page (the ONLY place
+ * its "no longer accepting applications" state lives — TheirStack's closed_at never reflects it),
+ * everything else via TheirStack's closed_at. Jobs that stopped accepting move to status 'halted'
+ * (visible, not hidden — you can override it by hand); ones accepting again go back to 'new'.
+ * Bounded per direction and by credits left, so it can't overshoot budget.
  */
 async function reconcileClosures(
   summary: PollSummary,
@@ -265,7 +266,7 @@ async function reconcileLinkedIn(
   if (openLi.length === 0 && closedLi.length === 0) return;
 
   const open = await checkLinkedInStatuses(openLi);
-  summary.closed += await markJobsClosed(
+  summary.halted += await markJobsHalted(
     THEIRSTACK_SOURCE,
     open.closed.map((r) => ({ externalId: r.externalId, closedAt: null })),
   );
@@ -319,7 +320,7 @@ async function reconcileTheirStack(
     const nowClosed = await fetchClosureStatus(openIds, true);
     await addTheirStackCreditsUsed(periodStart, nowClosed.length); // 1 credit per job returned
     creditsLeft -= nowClosed.length;
-    summary.closed += await markJobsClosed(THEIRSTACK_SOURCE, nowClosed);
+    summary.halted += await markJobsHalted(THEIRSTACK_SOURCE, nowClosed);
   }
 
   if (creditsLeft <= 0) return;
@@ -373,7 +374,7 @@ function logSummary(tag: string, s: PollSummary): void {
     s.baselineSeeded.length > 0 ? ` [BASELINE SEED (${s.baselineSeeded.join(', ')}) — silent]` : '';
   console.log(
     `[${tag}] fetched=${s.fetched} candidates=${s.candidates} inserted=${s.inserted} ` +
-      `updated=${s.updated} dropped=${s.dropped} suppressed=${s.suppressed} closed=${s.closed} ` +
+      `updated=${s.updated} dropped=${s.dropped} suppressed=${s.suppressed} halted=${s.halted} ` +
       `reopened=${s.reopened} alerted=${s.alerted} failedAlerts=${s.failedAlerts}${seeded}`,
   );
   if (s.failedCompanies.length > 0) {

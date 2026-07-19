@@ -20,7 +20,7 @@ export interface JobsResponse {
 }
 
 export type JobStatus =
-  'new' | 'interested' | 'applied' | 'rejected' | 'interview' | 'not_interested';
+  'new' | 'interested' | 'applied' | 'rejected' | 'interview' | 'not_interested' | 'halted';
 
 export const STATUSES: JobStatus[] = [
   'new',
@@ -29,6 +29,7 @@ export const STATUSES: JobStatus[] = [
   'rejected',
   'interview',
   'not_interested',
+  'halted', // no longer accepting applications — set automatically, overridable by hand
 ];
 
 /** Friendly label for a status value (e.g. 'not_interested' -> 'not interested'). */
