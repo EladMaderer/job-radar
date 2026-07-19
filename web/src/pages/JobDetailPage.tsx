@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
-import { updateJobStatus } from '../api.js';
+import { updateJobStatus, updateJobStatusNote } from '../api.js';
+import { StatusNoteInput } from '../components/StatusNoteInput.js';
 import { AuthError } from '../auth.js';
 import { useAuth } from '../AuthContext.js';
 import { fetchGuidance, fetchJob, fetchPrep, postGuidance, postPrep } from '../guidanceApi.js';
@@ -59,6 +60,18 @@ export function JobDetailPage() {
       await updateJobStatus(job.id, next);
     } catch (err) {
       setJob({ ...job, status: prev });
+      onErr(err);
+    }
+  }
+
+  async function changeStatusNote(note: string) {
+    if (!job) return;
+    const prev = job.statusNote;
+    setJob({ ...job, statusNote: note || null });
+    try {
+      await updateJobStatusNote(job.id, note);
+    } catch (err) {
+      setJob({ ...job, statusNote: prev });
       onErr(err);
     }
   }
@@ -129,6 +142,7 @@ export function JobDetailPage() {
               </option>
             ))}
           </select>
+          <StatusNoteInput value={job.statusNote} onSave={changeStatusNote} />
         </label>
       </div>
 

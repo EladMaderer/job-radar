@@ -684,3 +684,17 @@ language so it doubles as an interview script.
   a month at this volume, which is nothing against the cost of a wrong alert. Jobs already scored
   keep their old verdicts until the `rescore` workflow is run (scoring is deliberately once-per-job
   so the LLM is never re-billed on a normal cycle).
+
+## Free-text status note on a job
+
+- **Decision:** A job carries a short `status_note` (migration 013, `VARCHAR(30)`) — a free-text
+  line under the status picker, e.g. why a role was rejected. Shown in both places the picker
+  appears (the list row and the detail page) via one `StatusNoteInput` component. It saves on blur
+  or Enter, never per keystroke.
+- **Why:** The status alone ("rejected") loses the reason, which is the part worth remembering when
+  looking back over weeks of applications. 30 chars keeps it a label rather than a journal, so it
+  stays scannable in a table cell.
+- **Trade-off:** The cap is enforced in three places — `maxLength` on the input, a 400 in the API,
+  and `VARCHAR(30)` in the DB. Redundant on purpose: the UI limit is a convenience, and the API is
+  the real authority since it's reachable directly. Like `status`, the note is user-owned and the
+  poller never writes it.

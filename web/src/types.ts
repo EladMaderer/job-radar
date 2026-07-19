@@ -9,6 +9,7 @@ export interface JobListItem {
   fitScore: number | null;
   why: string | null;
   status: JobStatus;
+  statusNote: string | null; // short user note on the status (e.g. why rejected)
   postedAt: string | null;
   firstSeenAt: string;
   lastSeenAt: string;
@@ -31,6 +32,9 @@ export const STATUSES: JobStatus[] = [
   'not_interested',
   'halted', // no longer accepting applications — set automatically, overridable by hand
 ];
+
+/** Max length of the free-text status note — mirrors STATUS_NOTE_MAX_LENGTH on the server. */
+export const STATUS_NOTE_MAX_LENGTH = 30;
 
 /** Friendly label for a status value (e.g. 'not_interested' -> 'not interested'). */
 export function statusLabel(status: JobStatus): string {

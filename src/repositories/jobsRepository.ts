@@ -277,6 +277,10 @@ export const JOB_STATUSES = [
 ] as const;
 export type JobStatus = (typeof JOB_STATUSES)[number];
 
+/** Max length of the free-text status note. Mirrored by VARCHAR(30) in migration 013 and by the
+ * maxLength on the input in the web UI — validated here so the API is the authority. */
+export const STATUS_NOTE_MAX_LENGTH = 30;
+
 /** One job row as the dashboard needs it. */
 export interface JobListItem {
   id: number;
@@ -288,6 +292,7 @@ export interface JobListItem {
   fitScore: number | null;
   why: string | null;
   status: JobStatus;
+  statusNote: string | null; // short user note on the status (e.g. why rejected)
   postedAt: Date | null;
   firstSeenAt: Date;
   lastSeenAt: Date;
@@ -324,7 +329,7 @@ const DEFAULT_ORDER: SortOrder = 'desc';
 
 /** Columns selected/returned for a dashboard job row (kept in one place for list + update). */
 const JOB_ROW_COLUMNS = `id, source, company, title, location, url, fit_score, why, status,
-            posted_at, first_seen_at, last_seen_at`;
+            status_note, posted_at, first_seen_at, last_seen_at`;
 
 interface JobRow {
   id: number;
@@ -336,6 +341,7 @@ interface JobRow {
   fit_score: number | null;
   why: string | null;
   status: JobStatus;
+  status_note: string | null;
   posted_at: Date | null;
   first_seen_at: Date;
   last_seen_at: Date;
@@ -352,6 +358,7 @@ function mapJobRow(r: JobRow): JobListItem {
     fitScore: r.fit_score,
     why: r.why,
     status: r.status,
+    statusNote: r.status_note,
     postedAt: r.posted_at,
     firstSeenAt: r.first_seen_at,
     lastSeenAt: r.last_seen_at,
@@ -448,6 +455,22 @@ export async function updateStatus(id: number, status: JobStatus): Promise<JobLi
   const { rows } = await pool.query<JobRow>(
     `UPDATE jobs SET status = $2 WHERE id = $1 RETURNING ${JOB_ROW_COLUMNS}`,
     [id, status],
+  );
+  return rows[0] ? mapJobRow(rows[0]) : null;
+}
+
+/**
+ * Set (or clear) a job's short status note. User-owned like `status` — the poller never writes it.
+ * An empty/whitespace note clears the field. Returns the updated row, or null if no such job.
+ */
+export async function updateStatusNote(
+  id: number,
+  note: string | null,
+): Promise<JobListItem | null> {
+  const trimmed = note?.trim() ? note.trim().slice(0, STATUS_NOTE_MAX_LENGTH) : null;
+  const { rows } = await pool.query<JobRow>(
+    `UPDATE jobs SET status_note = $2 WHERE id = $1 RETURNING ${JOB_ROW_COLUMNS}`,
+    [id, trimmed],
   );
   return rows[0] ? mapJobRow(rows[0]) : null;
 }

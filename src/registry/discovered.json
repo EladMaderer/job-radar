@@ -483,5 +483,15 @@
     "name": "Twingate",
     "ats": "lever",
     "slug": "twingate"
+  },
+  {
+    "name": "Playtika",
+    "ats": "greenhouse",
+    "slug": "playtikaltd"
+  },
+  {
+    "name": "OpenWeb",
+    "ats": "greenhouse",
+    "slug": "openweb"
   }
 ]

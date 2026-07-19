@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { fetchJobs, updateJobStatus } from '../api.js';
+import { fetchJobs, updateJobStatus, updateJobStatusNote } from '../api.js';
 import { AuthError } from '../auth.js';
+import { StatusNoteInput } from '../components/StatusNoteInput.js';
 import { useAuth } from '../AuthContext.js';
 import {
   STATUSES,
@@ -213,6 +214,19 @@ export function JobsList() {
     }
   }
 
+  async function changeStatusNote(job: JobListItem, note: string) {
+    const prev = job.statusNote;
+    const next = note || null;
+    setJobs((list) => list.map((j) => (j.id === job.id ? { ...j, statusNote: next } : j)));
+    try {
+      await updateJobStatusNote(job.id, note);
+    } catch (err) {
+      setJobs((list) => list.map((j) => (j.id === job.id ? { ...j, statusNote: prev } : j)));
+      if (err instanceof AuthError) logout('Your session expired — sign in again.');
+      else setError(err instanceof Error ? err.message : String(err));
+    }
+  }
+
   const arrow = order === 'desc' ? '↓' : '↑';
 
   return (
@@ -330,6 +344,10 @@ export function JobsList() {
                           </option>
                         ))}
                       </select>
+                      <StatusNoteInput
+                        value={job.statusNote}
+                        onSave={(note) => changeStatusNote(job, note)}
+                      />
                     </td>
                     <td className="date" data-label="First seen">
                       {formatDate(job.firstSeenAt)}

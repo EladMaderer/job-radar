@@ -3,7 +3,9 @@ import { requireAuth } from '../_auth.js';
 import {
   getJobById,
   JOB_STATUSES,
+  STATUS_NOTE_MAX_LENGTH,
   updateStatus,
+  updateStatusNote,
   type JobStatus,
 } from '../../src/repositories/jobsRepository.js';
 
@@ -38,13 +40,42 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     }
 
     if (req.method === 'PATCH') {
-      const body = (req.body ?? {}) as { status?: unknown };
-      const status = body.status;
-      if (typeof status !== 'string' || !(VALID_STATUSES as readonly string[]).includes(status)) {
-        res.status(400).json({ error: `status must be one of: ${VALID_STATUSES.join(', ')}` });
+      const body = (req.body ?? {}) as { status?: unknown; statusNote?: unknown };
+      const hasStatus = body.status !== undefined;
+      const hasNote = body.statusNote !== undefined;
+      if (!hasStatus && !hasNote) {
+        res.status(400).json({ error: 'provide status and/or statusNote' });
         return;
       }
-      const job = await updateStatus(id, status as JobStatus);
+
+      // statusNote: null/'' clears it. Length is capped here too — the UI's maxLength is a
+      // convenience, not a guarantee.
+      if (hasNote) {
+        const note = body.statusNote;
+        if (note !== null && typeof note !== 'string') {
+          res.status(400).json({ error: 'statusNote must be a string or null' });
+          return;
+        }
+        if (typeof note === 'string' && note.trim().length > STATUS_NOTE_MAX_LENGTH) {
+          res
+            .status(400)
+            .json({ error: `statusNote must be at most ${STATUS_NOTE_MAX_LENGTH} characters` });
+          return;
+        }
+      }
+
+      let job = null;
+      if (hasStatus) {
+        const status = body.status;
+        if (typeof status !== 'string' || !(VALID_STATUSES as readonly string[]).includes(status)) {
+          res.status(400).json({ error: `status must be one of: ${VALID_STATUSES.join(', ')}` });
+          return;
+        }
+        job = await updateStatus(id, status as JobStatus);
+      }
+      if (hasNote) {
+        job = await updateStatusNote(id, (body.statusNote as string | null) ?? null);
+      }
       if (!job) {
         res.status(404).json({ error: 'Job not found' });
         return;

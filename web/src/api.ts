@@ -31,6 +31,17 @@ export async function fetchJobs(query: JobQuery): Promise<JobsResponse> {
   return (await res.json()) as JobsResponse;
 }
 
+/** PATCH /api/jobs/:id — set a job's short status note ('' clears it). Returns the updated job. */
+export async function updateJobStatusNote(id: number, statusNote: string): Promise<JobListItem> {
+  const res = await authFetch(`/api/jobs/${id}`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ statusNote: statusNote.trim() || null }),
+  });
+  if (!res.ok) throw new Error(`Update failed: HTTP ${res.status}`);
+  return ((await res.json()) as { job: JobListItem }).job;
+}
+
 /** PATCH /api/jobs/:id — change a job's status. Returns the updated job. */
 export async function updateJobStatus(id: number, status: JobStatus): Promise<JobListItem> {
   const res = await authFetch(`/api/jobs/${id}`, {
