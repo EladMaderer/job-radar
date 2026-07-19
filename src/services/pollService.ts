@@ -54,6 +54,9 @@ function emptySummary(): PollSummary {
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
+const FETCH_CONCURRENCY = 8; // company boards fetched in parallel (external I/O)
+const DB_WRITE_CONCURRENCY = 8; // updateJobFields in parallel (stays within the pg pool's ~10)
+
 /**
  * Shared downstream for every source: location-filter → dedup against the DB → score new jobs →
  * store (always, including irrelevant ones — the scored-once guarantee) → count.
@@ -86,15 +89,16 @@ async function processJobs(
       source,
       sourceJobs.map((job) => job.externalId),
     );
+    const toUpdate: Job[] = [];
     for (const job of sourceJobs) {
-      if (existing.has(job.externalId)) {
-        // Seen before: refresh mutable fields only. Never re-score (would re-spend LLM tokens).
-        await updateJobFields(job);
-        summary.updated += 1;
-      } else {
-        newJobs.push(job);
-      }
+      if (existing.has(job.externalId)) toUpdate.push(job);
+      else newJobs.push(job);
     }
+    // Seen before: refresh mutable fields only, never re-score. Run the updates concurrently —
+    // a full ATS cycle refreshes thousands of already-seen jobs, and one-at-a-time DB round-trips
+    // to Neon dominate the cycle time.
+    await mapWithConcurrency(toUpdate, DB_WRITE_CONCURRENCY, (job) => updateJobFields(job));
+    summary.updated += toUpdate.length;
     if (!knownSources.has(source) && !summary.baselineSeeded.includes(source)) {
       summary.baselineSeeded.push(source);
     }
@@ -131,20 +135,22 @@ export async function runPollCycle(scorer: Scorer = getScorer()): Promise<PollSu
   const knownSources = await sourcesWithRows();
   const summary = emptySummary();
 
-  for (const company of COMPANIES) {
-    let raw: Job[];
+  // Pass 1: fetch every board in parallel — sequential fetches over ~130 boards dominate the cycle
+  // time. One bad board must never kill the cycle, so each fetch swallows its own error.
+  const fetched = await mapWithConcurrency(COMPANIES, FETCH_CONCURRENCY, async (company) => {
     try {
-      const adapter = adapterFor(company);
-      raw = await adapter(company.slug, company.name);
+      return await adapterFor(company)(company.slug, company.name);
     } catch (err) {
-      // One bad board must never kill the cycle.
       summary.failedCompanies.push(company.name);
       console.error(`[poll] ${company.name} failed: ${(err as Error).message}`);
-      continue;
+      return [] as Job[];
     }
-    summary.fetched += raw.length;
-    await processJobs(raw, scorer, summary, knownSources);
-  }
+  });
+  const allJobs = fetched.flat();
+  summary.fetched += allJobs.length;
+
+  // Pass 2: one shared downstream over everything (dedup once per source, parallel updates + scoring).
+  await processJobs(allJobs, scorer, summary, knownSources);
 
   await sendPendingAlerts(summary);
   logSummary('poll', summary);
