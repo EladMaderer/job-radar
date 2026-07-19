@@ -9,7 +9,10 @@ import {
   FRONTEND_KEYWORDS,
   FRONTEND_ONLY_KEYWORDS,
   FRONTEND_SLUGS,
+  LEAD_ROLE_KEYWORDS,
   NEGATIVE_KEYWORDS,
+  REACT_NATIVE_KEYWORDS,
+  REACT_NATIVE_SLUGS,
   SCORE_MAX,
   SCORE_MIN,
   SENIOR_KEYWORDS,
@@ -148,6 +151,22 @@ function scoreSync(job: Job): ScoreResult {
     if (negativePts) {
       score += negativePts;
       reasons.push(`disqualifier (${negativeWhere}) ${negativePts}`);
+    }
+  }
+
+  // Team-lead / engineering-management ROLE penalty — the candidate is a hands-on senior IC.
+  // WAIVED when React Native is present: an RN lead is the one lead role worth surfacing (mirrors
+  // the EXCEPTION in the LLM scorer's prompt).
+  const isReactNative =
+    slugs.some((s) => REACT_NATIVE_SLUGS.includes(s)) ||
+    matchesAny(title, REACT_NATIVE_KEYWORDS) ||
+    matchesAny(description, REACT_NATIVE_KEYWORDS);
+  if (!isReactNative) {
+    const leadWhere = locate(title, description, LEAD_ROLE_KEYWORDS);
+    const leadPts = weightFor(leadWhere, WEIGHTS.backendPrimaryPenalty);
+    if (leadPts) {
+      score += leadPts;
+      reasons.push(`team-lead role, not React Native (${leadWhere}) ${leadPts}`);
     }
   }
 

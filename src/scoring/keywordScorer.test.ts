@@ -187,3 +187,26 @@ test('punctuation keywords match real usage; boundaries reject substrings', () =
   assert.ok(!matchesKeyword('send an email', 'ai'), '"ai" must not hit "email"');
   assert.ok(!matchesKeyword('golang backend', 'go developer'), 'phrase must match as a phrase');
 });
+
+test('team-lead roles are penalized, unless the role is React Native', async () => {
+  const ic = await keywordScorer.score(
+    job({ title: 'Senior Frontend Developer', description: 'React, TypeScript' }),
+  );
+  const lead = await keywordScorer.score(
+    job({ title: 'Frontend Team Lead', description: 'React, TypeScript' }),
+  );
+  assert.match(lead.why, /team-lead role/);
+  assert.ok(lead.score < ic.score, 'a lead title must score below the same IC role');
+
+  // React Native waives it — an RN lead is the one lead role worth surfacing.
+  const rnLead = await keywordScorer.score(
+    job({ title: 'React Native Team Lead', description: 'React Native, TypeScript' }),
+  );
+  assert.doesNotMatch(rnLead.why, /team-lead role/);
+
+  // "lead the effort" in body text is normal senior-IC scope, not a lead role.
+  const icLeading = await keywordScorer.score(
+    job({ title: 'Senior Frontend Engineer', description: 'You will lead the redesign effort.' }),
+  );
+  assert.doesNotMatch(icLeading.why, /team-lead role/);
+});

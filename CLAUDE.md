@@ -14,6 +14,8 @@ tracks application status. It's both a daily tool and a portfolio project — bu
 - Boost: senior + AI-driven / AI-tooling product roles.
 - Downrank/skip: pure backend, Go/Java/Python-primary, DevOps/SRE/Data-eng, Angular-only,
   junior/intern/student, roles requiring relocation abroad.
+- Skip team-lead / engineering-manager roles (I'm a hands-on senior IC, not a lead) — UNLESS the
+  role is specifically React Native. "Lead the project" wording in a senior IC role is fine.
 
 ## Tech stack
 - Node.js + Express + TypeScript (strict), PostgreSQL via `pg` (raw SQL, no ORM),

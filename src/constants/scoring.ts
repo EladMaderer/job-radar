@@ -78,17 +78,32 @@ export const BACKEND_SIGNAL_KEYWORDS = [
 
 /**
  * Seniority signal. Bare `lead` is excluded — it matches body text like "lead the effort" and
- * awards false seniority points; use the specific lead-role phrases instead.
+ * awards false seniority points.
+ *
+ * Lead-ROLE phrases ('team lead', 'tech lead', …) are deliberately NOT here: the candidate is a
+ * hands-on senior IC, not a team lead, so a lead title is a negative, not a seniority boost.
+ * See LEAD_ROLE_KEYWORDS below.
  */
-export const SENIOR_KEYWORDS = [
-  'senior',
-  'sr.',
-  'staff',
-  'principal',
+export const SENIOR_KEYWORDS = ['senior', 'sr.', 'staff', 'principal'];
+
+/**
+ * Team-lead / engineering-management ROLE titles. Not a fit — the candidate is a hands-on senior
+ * IC — UNLESS the role is specifically React Native, so the penalty is waived when React Native is
+ * present (mirrors the EXCEPTION in the LLM scorer's prompt). Phrases only, never bare `lead`,
+ * which matches ordinary body text like "lead the effort".
+ */
+export const LEAD_ROLE_KEYWORDS = [
   'team lead',
   'tech lead',
   'engineering lead',
   'group lead',
+  'frontend lead',
+  'front-end lead',
+  'engineering manager',
+  'development manager',
+  'dev manager',
+  'head of frontend',
+  'head of engineering',
 ];
 
 export const AI_KEYWORDS = [
@@ -138,6 +153,13 @@ export const BACKEND_PRIMARY_KEYWORDS = [
  * when present they beat regexing prose, so the scorer consults them first.
  */
 export const FRONTEND_SLUGS = ['react', 'react-native', 'reactjs', 'nextjs', 'next-js', 'vue'];
+
+/**
+ * React Native signal — the candidate's MAIN skill, and the sole waiver for the lead-role penalty
+ * (a React Native lead is the one lead role worth surfacing).
+ */
+export const REACT_NATIVE_KEYWORDS = ['react native', 'react-native', 'reactnative'];
+export const REACT_NATIVE_SLUGS = ['react-native', 'reactnative'];
 export const BACKEND_SIGNAL_SLUGS = ['nodejs', 'node-js', 'node', 'express'];
 export const BACKEND_PRIMARY_SLUGS = [
   'golang',

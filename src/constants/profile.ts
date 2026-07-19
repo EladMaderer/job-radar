@@ -21,6 +21,9 @@ RELEVANCE — set relevant=false (DROP the role, do not store it) when ANY of th
 - Not a software-engineering role (Sales, Marketing, Solutions/Sales Engineer, Product Manager, Support, Data Analyst, Designer, Recruiter, Finance, Operations, QA-manual).
 - DevOps/SRE/Platform, Data-engineering, or ML/AI-research engineering.
 - Junior / intern / student / entry-level / new-grad.
+- Team-lead / engineering-management roles: the JOB ITSELF is to lead or manage a team — titles like Team Lead, Frontend Lead, Tech Lead, Engineering Manager, Dev Manager, Group Lead, Head of Frontend/Engineering — or people management (direct reports, hiring, performance reviews) is a core responsibility. The candidate is a hands-on senior IC and is NOT a team lead.
+  EXCEPTION — KEEP a lead role ONLY when React Native is the CORE technology of that role (a React Native lead is worth surfacing; a lead role on any other stack is not).
+  Do NOT drop a hands-on senior IC role merely because the description says "lead projects", "lead the design of", "technical leadership", "own the frontend", or "mentor juniors" — that is normal senior-IC scope. DROP only when running/managing a team is the actual job.
 - Requires relocation outside Israel with no remote option.
 KEEP (relevant=true) ONLY roles where React or React Native is the primary/major frontend technology: pure React/React Native frontend roles, or front-end-oriented full-stack roles where React/React Native is the main client stack (with Node/backend as the SECONDARY part). When unsure whether React/RN is truly core, lean toward DROP.
 
