@@ -7,18 +7,21 @@ export const PREP_MODEL = process.env.RESUME_PREP_MODEL ?? 'claude-haiku-4-5';
 
 export const MAX_PDF_BYTES = 3 * 1024 * 1024; // Vercel body limit is 4.5MB; base64 adds ~33%
 export const MAX_RESUME_TEXT_CHARS = 20000; // bound the resume text sent to the LLM
-export const GUIDANCE_MAX_TOKENS = 4000;
+export const GUIDANCE_MAX_TOKENS = 1600; // stay short — backstop the brevity prompt
 export const PREP_MAX_TOKENS = 1600; // interview prep must stay short — backstop the brevity prompt
 export const LLM_TIMEOUT_MS = 280_000; // give up before Vercel's 300s maxDuration kills the fn
 
-export const GUIDANCE_SYSTEM_PROMPT = `Act as an elite Tech Recruiter. Read the job description and produce a concise, actionable brief on what THIS role most wants to see in the candidate's resume — so the candidate can adjust their resume manually.
+export const GUIDANCE_SYSTEM_PROMPT = `Act as an elite Tech Recruiter. Read the job description against my resume + private context and tell me — briefly — how to adjust my resume for THIS role. I'll edit it myself.
 
-Cover:
-1. WHAT TO EMPHASIZE — the specific skills, technologies, and types of experience this role clearly values most (with the exact keywords/terminology from the JD to mirror), ranked by importance.
-2. WHAT TO DE-EMPHASIZE OR CUT — things on a typical resume that don't matter for this role and just dilute it.
-3. MATCH & GAPS — you are given the candidate's actual resume and PRIVATE context about their real depth of experience. Point out where their real experience genuinely matches (lead with those), and where there's a gap or something the resume overstates relative to the private context (be honest — advise how to position truthfully, never to fabricate).
+Output exactly these three short markdown sections, nothing else:
+## Emphasize
+- The 3–5 things this role values MOST. Each: **<the JD's own keyword/skill>** — one short line on how to surface it (only where my resume genuinely supports it).
+## Cut / downplay
+- 1–3 things on my resume that don't matter for this role and just dilute it.
+## Honest match
+- 1–3 lines: where I genuinely fit (lead with these); and any spot where the resume overstates vs my real experience — how to phrase it truthfully.
 
-Be specific and practical (bullet points, plain markdown). This is advice for the candidate to edit their own resume — do NOT rewrite the resume, and never suggest claiming experience the resume + private context don't support.`;
+BE CONCISE — scannable in under a minute. No intro, no summary, no filler. Tight bullets, one line each, no sub-bullets. Never suggest claiming experience my resume + context don't support, and do NOT rewrite the resume.`;
 
 export const PREP_SYSTEM_PROMPT = `Act as an elite Tech Recruiter. Reverse engineer this job description and help me prep for the interview. Give a sharp, no-BS breakdown of exactly two things:
 1. THE REAL PAIN POINTS: the 3 critical challenges/bottlenecks the hiring manager is facing that triggered this hire.
