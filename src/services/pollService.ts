@@ -5,6 +5,7 @@ import { getNotifier } from '../notify/index.js';
 import { adapterFor, COMPANIES } from '../registry/companies.js';
 import {
   addTheirStackCreditsUsed,
+  closedExternalIds,
   countPendingAlerts,
   existsSimilarJob,
   findExistingExternalIds,
@@ -12,16 +13,24 @@ import {
   insertJob,
   latestFirstSeen,
   markAlerted,
+  markJobsClosed,
+  markJobsReopened,
+  openExternalIdsToRecheck,
   sourcesWithRows,
   theirStackCreditsUsed,
   updateJobFields,
 } from '../repositories/jobsRepository.js';
 import { SCORE_CONCURRENCY } from '../constants/scoring.js';
+import { THEIRSTACK_RECONCILE_MAX } from '../constants/theirstack.js';
 import { billingPeriod } from '../lib/billingPeriod.js';
 import { mapWithConcurrency } from '../lib/concurrency.js';
 import { getScorer } from '../scoring/getScorer.js';
 import { classifyLocation } from '../scoring/location.js';
-import { fetchTheirStackJobs, THEIRSTACK_SOURCE } from '../sources/theirstack.js';
+import {
+  fetchClosureStatus,
+  fetchTheirStackJobs,
+  THEIRSTACK_SOURCE,
+} from '../sources/theirstack.js';
 import type { Scorer } from '../scoring/types.js';
 
 export interface PollSummary {
@@ -33,6 +42,8 @@ export interface PollSummary {
   suppressed: number; // cross-source duplicates — stored but never alerted
   alerted: number; // alerts actually sent (and marked) this cycle
   failedAlerts: number; // sends that failed — stay pending, retried next cycle
+  closed: number; // stored jobs newly detected as closed (hidden) — TheirStack reconciliation
+  reopened: number; // previously-closed jobs detected open again (un-hidden)
   baselineSeeded: string[]; // sources that baseline-seeded silently this cycle
   failedCompanies: string[];
 }
@@ -47,6 +58,8 @@ function emptySummary(): PollSummary {
     suppressed: 0,
     alerted: 0,
     failedAlerts: 0,
+    closed: 0,
+    reopened: 0,
     baselineSeeded: [],
     failedCompanies: [],
   };
@@ -210,9 +223,50 @@ export async function runTheirStackCycle(scorer: Scorer = getScorer()): Promise<
     existsSimilarJob(job.company, job.title, THEIRSTACK_SOURCE),
   );
 
+  // Step 2: retire postings that closed after we stored them, and resurface any that reopened.
+  // Uses whatever credits remain this period after the fetch above (each state change = 1 credit).
+  await reconcileClosures(summary, periodStart, remaining - jobs.length);
+
   await sendPendingAlerts(summary);
   logSummary('theirstack', summary);
   return summary;
+}
+
+/**
+ * Reconcile the closure state of already-stored TheirStack jobs against the source of truth.
+ * Two cheap id-lookup queries (see `fetchClosureStatus`): one flips still-open jobs the user hasn't
+ * acted on to closed (hidden); the other clears the flag on any that reopened. Bounded per direction
+ * by THEIRSTACK_RECONCILE_MAX and by the credits left this period, so it can never overshoot budget.
+ */
+async function reconcileClosures(
+  summary: PollSummary,
+  periodStart: string,
+  creditsLeft: number,
+): Promise<void> {
+  if (creditsLeft <= 0) return;
+
+  // Pass A: which of our visible, still-open jobs did TheirStack close?
+  const openCap = Math.min(THEIRSTACK_RECONCILE_MAX, creditsLeft);
+  const openIds = await openExternalIdsToRecheck(THEIRSTACK_SOURCE, openCap);
+  if (openIds.length > 0) {
+    const nowClosed = await fetchClosureStatus(openIds, true);
+    await addTheirStackCreditsUsed(periodStart, nowClosed.length); // 1 credit per job returned
+    creditsLeft -= nowClosed.length;
+    summary.closed += await markJobsClosed(THEIRSTACK_SOURCE, nowClosed);
+  }
+
+  // Pass B: did any job we previously marked closed reopen?
+  if (creditsLeft <= 0) return;
+  const closedCap = Math.min(THEIRSTACK_RECONCILE_MAX, creditsLeft);
+  const closedIds = await closedExternalIds(THEIRSTACK_SOURCE, closedCap);
+  if (closedIds.length > 0) {
+    const nowOpen = await fetchClosureStatus(closedIds, false);
+    await addTheirStackCreditsUsed(periodStart, nowOpen.length);
+    summary.reopened += await markJobsReopened(
+      THEIRSTACK_SOURCE,
+      nowOpen.map((j) => j.externalId),
+    );
+  }
 }
 
 /**
@@ -251,8 +305,8 @@ function logSummary(tag: string, s: PollSummary): void {
     s.baselineSeeded.length > 0 ? ` [BASELINE SEED (${s.baselineSeeded.join(', ')}) — silent]` : '';
   console.log(
     `[${tag}] fetched=${s.fetched} candidates=${s.candidates} inserted=${s.inserted} ` +
-      `updated=${s.updated} dropped=${s.dropped} suppressed=${s.suppressed} alerted=${s.alerted} ` +
-      `failedAlerts=${s.failedAlerts}${seeded}`,
+      `updated=${s.updated} dropped=${s.dropped} suppressed=${s.suppressed} closed=${s.closed} ` +
+      `reopened=${s.reopened} alerted=${s.alerted} failedAlerts=${s.failedAlerts}${seeded}`,
   );
   if (s.failedCompanies.length > 0) {
     console.warn(`[${tag}] failed boards: ${s.failedCompanies.join(', ')}`);

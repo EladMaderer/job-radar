@@ -5,6 +5,7 @@ import {
   THEIRSTACK_COUNTRY_CODES,
   THEIRSTACK_FIRST_RUN_MAX_AGE_DAYS,
   THEIRSTACK_JOB_TITLES,
+  THEIRSTACK_RECONCILE_ID_BATCH,
   THEIRSTACK_WATERMARK_OVERLAP_MS,
 } from '../constants/theirstack.js';
 import { COMPANIES } from '../registry/companies.js';
@@ -45,6 +46,7 @@ interface TheirStackJob {
   technology_slugs?: string[] | null;
   seniority?: string | null;
   hiring_team?: TheirStackHiringTeamMember[] | null;
+  closed_at?: string | null; // set by TheirStack when it detects the posting was closed
 }
 
 interface TheirStackResponse {
@@ -152,6 +154,9 @@ export async function fetchTheirStackJobs(
       ? config.THEIRSTACK_MAX_AGE_DAYS
       : THEIRSTACK_FIRST_RUN_MAX_AGE_DAYS,
     company_name_not: excludeCompanies,
+    // Step 1: never ingest a job TheirStack already knows is closed ("no longer accepting
+    // applications"). Jobs that close AFTER we store them are handled by reconcileClosures below.
+    is_closed: false,
     order_by: [{ field: 'discovered_at', desc: false }],
   };
   if (watermark) {
@@ -196,4 +201,48 @@ export async function fetchTheirStackJobs(
       `${uniqueCompanies} companies. (jobs/search bills API credits only — no company credits.)`,
   );
   return jobs;
+}
+
+export interface ClosureStatus {
+  externalId: string;
+  closedAt: Date | null;
+}
+
+/**
+ * Re-check the closure status of specific stored jobs by id (reconciliation, Step 2). Returns the
+ * subset of `ids` whose current state MATCHES `isClosed` — with `isClosed=true` the jobs that are
+ * now closed (carrying TheirStack's `closed_at`), with `isClosed=false` the ones now open again.
+ *
+ * CREDIT MODEL: 1 credit per job RETURNED, so this only bills for jobs actually IN the queried state
+ * (i.e. the ones that changed) — checking 100 still-open jobs for closure returns 0 and costs 0. The
+ * body carries NO title/country/age filter: we're looking up explicit ids and must catch closures on
+ * old postings too (an age cap would hide exactly the stale jobs we're trying to retire).
+ */
+export async function fetchClosureStatus(
+  ids: string[],
+  isClosed: boolean,
+): Promise<ClosureStatus[]> {
+  const apiKey = config.THEIRSTACK_API_KEY;
+  if (!apiKey) throw new Error('THEIRSTACK_API_KEY is not set');
+  if (ids.length === 0) return [];
+
+  const results: ClosureStatus[] = [];
+  for (let i = 0; i < ids.length; i += THEIRSTACK_RECONCILE_ID_BATCH) {
+    const batch = ids.slice(i, i + THEIRSTACK_RECONCILE_ID_BATCH);
+    const numericIds = batch.map(Number).filter((n) => Number.isFinite(n));
+    if (numericIds.length === 0) continue;
+    const raws = await searchPage(apiKey, {
+      job_id_or: numericIds,
+      is_closed: isClosed,
+      page: 0,
+      limit: numericIds.length, // at most one per requested id can match — a single page suffices
+    });
+    for (const raw of raws) {
+      results.push({
+        externalId: String(raw.id),
+        closedAt: raw.closed_at ? new Date(raw.closed_at) : null,
+      });
+    }
+  }
+  return results;
 }

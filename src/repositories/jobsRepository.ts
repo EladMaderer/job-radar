@@ -366,7 +366,9 @@ export async function listJobs(
 ): Promise<{ jobs: JobListItem[]; total: number }> {
   // Only relevant jobs by default. Irrelevant rows are stored purely as dedup memory (so the
   // scorer never re-processes them) and should never appear in the dashboard.
-  const where: string[] = ['relevant = true'];
+  // Also hide closed postings ("no longer accepting applications") — closed_at is set by the
+  // TheirStack reconciliation pass and cleared again if a job reopens.
+  const where: string[] = ['relevant = true', 'closed_at IS NULL'];
   const params: unknown[] = [];
 
   if (filters.status) {
@@ -472,4 +474,64 @@ export async function updateJobFields(job: Job): Promise<void> {
       job.postedAt,
     ],
   );
+}
+
+// --- Closure reconciliation (Step 2) --------------------------------------------------------
+
+/**
+ * External ids of currently-VISIBLE, still-open jobs for a source, oldest-seen first — the set to
+ * re-check for closure. Limited to relevant rows the user hasn't dispositioned ('new'/'interested');
+ * once they've applied or are interviewing, a posting closing is expected and we keep tracking it.
+ * `limit` bounds the reconciliation's worst-case credit spend.
+ */
+export async function openExternalIdsToRecheck(source: string, limit: number): Promise<string[]> {
+  const { rows } = await pool.query<{ external_id: string }>(
+    `SELECT external_id FROM jobs
+      WHERE source = $1 AND closed_at IS NULL AND relevant = true
+        AND status IN ('new', 'interested')
+      ORDER BY first_seen_at ASC
+      LIMIT $2`,
+    [source, limit],
+  );
+  return rows.map((r) => r.external_id);
+}
+
+/** External ids of jobs we've marked closed for a source — candidates to detect reopening. */
+export async function closedExternalIds(source: string, limit: number): Promise<string[]> {
+  const { rows } = await pool.query<{ external_id: string }>(
+    `SELECT external_id FROM jobs
+      WHERE source = $1 AND closed_at IS NOT NULL
+      ORDER BY closed_at ASC
+      LIMIT $2`,
+    [source, limit],
+  );
+  return rows.map((r) => r.external_id);
+}
+
+/** Mark jobs closed (hidden from the dashboard). Only flips still-open rows. Returns rows updated. */
+export async function markJobsClosed(
+  source: string,
+  entries: { externalId: string; closedAt: Date | null }[],
+): Promise<number> {
+  let updated = 0;
+  for (const e of entries) {
+    const { rowCount } = await pool.query(
+      `UPDATE jobs SET closed_at = COALESCE($3, now())
+         WHERE source = $1 AND external_id = $2 AND closed_at IS NULL`,
+      [source, e.externalId, e.closedAt],
+    );
+    updated += rowCount ?? 0;
+  }
+  return updated;
+}
+
+/** Clear closed_at for reopened jobs (they show on the dashboard again). Returns rows updated. */
+export async function markJobsReopened(source: string, externalIds: string[]): Promise<number> {
+  if (externalIds.length === 0) return 0;
+  const { rowCount } = await pool.query(
+    `UPDATE jobs SET closed_at = NULL
+       WHERE source = $1 AND external_id = ANY($2::text[]) AND closed_at IS NOT NULL`,
+    [source, externalIds],
+  );
+  return rowCount ?? 0;
 }

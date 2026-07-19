@@ -56,3 +56,13 @@ export const THEIRSTACK_FIRST_RUN_MAX_AGE_DAYS = 60;
  * fewer re-billed boundary jobs.
  */
 export const THEIRSTACK_WATERMARK_OVERLAP_MS = 30 * 60 * 1000; // 30 minutes
+
+/**
+ * Closure reconciliation (Step 2): re-check the closure status of stored TheirStack jobs so ones
+ * that go "no longer accepting applications" get hidden, and reopened ones return. Credit-cheap by
+ * design — TheirStack bills per job RETURNED and we query BY is_closed state (job_id_or + is_closed),
+ * so a pass only spends credits for jobs that actually changed state, not for every job checked.
+ * These bound the worst case (every re-checked job flipped state) and keep id lists under the page cap.
+ */
+export const THEIRSTACK_RECONCILE_ID_BATCH = 200; // job ids per job_id_or request (< the 500/page cap)
+export const THEIRSTACK_RECONCILE_MAX = 400; // hard cap on ids re-checked per cycle, per direction

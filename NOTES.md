@@ -647,3 +647,21 @@ language so it doubles as an interview script.
 - **Why:** It's the current Node standard; native `fetch` and modern tooling (tsx) assume it.
 - **Trade-off:** The `.js`-extension-in-TS-imports convention looks odd at first sight, but it's
   spec-correct and `tsc`/`tsx` both enforce/support it.
+
+## Hiding closed TheirStack jobs ("no longer accepting applications")
+
+- **Decision:** Two-part. (1) Add `is_closed: false` to the TheirStack search so already-closed
+  postings never enter. (2) A reconciliation pass in the TheirStack cycle re-checks the closure
+  state of stored jobs: still-open jobs the user hasn't acted on (`new`/`interested`) that TheirStack
+  now reports closed get a `closed_at` timestamp (migration 011) and are hidden from the dashboard
+  (`closed_at IS NULL` in the list query); any previously-closed job that reopens has the flag cleared
+  and returns.
+- **Why:** The fetch is incremental (`discovered_at` watermark), so a job that closes *after* we
+  store it is never re-fetched — the fetch filter alone can't retire it. Reconciliation checks state
+  directly. It's credit-cheap: TheirStack bills per job *returned*, and we query BY `is_closed` state
+  (`job_id_or` + `is_closed`), so a pass only spends credits for jobs that actually changed state
+  (checking 100 still-open jobs returns 0, costs 0). Bounded per direction by `THEIRSTACK_RECONCILE_MAX`
+  and by credits remaining this period, so it can never overshoot budget.
+- **Trade-off:** Only `new`/`interested` jobs are auto-hidden — once you've `applied`/`interview`,
+  a posting closing is expected and we keep tracking it, so those never auto-hide. Closed jobs are
+  hidden globally (no "show closed" filter yet); add one later if you want to audit them.
