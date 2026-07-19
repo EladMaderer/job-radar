@@ -665,3 +665,20 @@ language so it doubles as an interview script.
 - **Trade-off:** Only `new`/`interested` jobs are auto-hidden — once you've `applied`/`interview`,
   a posting closing is expected and we keep tracking it, so those never auto-hide. Closed jobs are
   hidden globally (no "show closed" filter yet); add one later if you want to audit them.
+
+### Follow-up: LinkedIn "no longer accepting applications" (the real signal)
+
+- **Problem found:** TheirStack's `closed_at`/`is_closed` only fires when a posting is REMOVED from
+  the source. LinkedIn keeps a post listed while showing "No longer accepting applications", so
+  TheirStack reports it open (`closed_at=null`) — the Step-2 reconciliation caught almost none of the
+  jobs the user was actually seeing as closed.
+- **Decision:** For LinkedIn-hosted postings, read the truth from LinkedIn's PUBLIC guest job page
+  (`/jobs-guest/jobs/api/jobPosting/{id}`, no auth) and look for the "no longer accepting
+  applications" phrase. Reconciliation now routes each job by URL: LinkedIn → LinkedIn page check
+  (free), everything else → TheirStack `closed_at` (credits). LinkedIn job id is parsed from the URL.
+- **Why safe:** any non-200 / block / error → 'unknown', which NEVER hides a job. If GitHub Actions'
+  datacenter IP is blocked, the pass logs "all unknown — IP likely blocked" and does nothing rather
+  than wrongly hiding everything.
+- **Trade-off:** it IS light LinkedIn scraping (public endpoint, ~10 requests/2h, personal use) — a
+  ToS gray area, accepted for a personal tool. Fragile to LinkedIn changing the phrase or blocking
+  the endpoint; both degrade to 'unknown' (jobs stay visible), never to false hides.

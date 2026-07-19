@@ -5,7 +5,7 @@ import { getNotifier } from '../notify/index.js';
 import { adapterFor, COMPANIES } from '../registry/companies.js';
 import {
   addTheirStackCreditsUsed,
-  closedExternalIds,
+  closedJobsToRecheck,
   countPendingAlerts,
   existsSimilarJob,
   findExistingExternalIds,
@@ -15,17 +15,20 @@ import {
   markAlerted,
   markJobsClosed,
   markJobsReopened,
-  openExternalIdsToRecheck,
+  openJobsToRecheck,
   sourcesWithRows,
   theirStackCreditsUsed,
   updateJobFields,
 } from '../repositories/jobsRepository.js';
+import type { RecheckRef } from '../repositories/jobsRepository.js';
 import { SCORE_CONCURRENCY } from '../constants/scoring.js';
 import { THEIRSTACK_RECONCILE_MAX } from '../constants/theirstack.js';
+import { LINKEDIN_CHECK_CONCURRENCY, LINKEDIN_RECHECK_MAX } from '../constants/linkedin.js';
 import { billingPeriod } from '../lib/billingPeriod.js';
 import { mapWithConcurrency } from '../lib/concurrency.js';
 import { getScorer } from '../scoring/getScorer.js';
 import { classifyLocation } from '../scoring/location.js';
+import { isLinkedInJob, linkedInAcceptingStatus } from '../sources/linkedin.js';
 import {
   fetchClosureStatus,
   fetchTheirStackJobs,
@@ -233,21 +236,85 @@ export async function runTheirStackCycle(scorer: Scorer = getScorer()): Promise<
 }
 
 /**
- * Reconcile the closure state of already-stored TheirStack jobs against the source of truth.
- * Two cheap id-lookup queries (see `fetchClosureStatus`): one flips still-open jobs the user hasn't
- * acted on to closed (hidden); the other clears the flag on any that reopened. Bounded per direction
- * by THEIRSTACK_RECONCILE_MAX and by the credits left this period, so it can never overshoot budget.
+ * Reconcile the closure state of already-stored jobs against the source of truth, routing each by
+ * its URL: LinkedIn postings are checked on LinkedIn's public page (the ONLY place its "no longer
+ * accepting applications" state lives — TheirStack's closed_at never reflects it), everything else
+ * via TheirStack's closed_at. In both, still-open jobs the user hasn't acted on get hidden and any
+ * that reopened get resurfaced. Bounded per direction and by credits left, so it can't overshoot.
  */
 async function reconcileClosures(
   summary: PollSummary,
   periodStart: string,
   creditsLeft: number,
 ): Promise<void> {
+  const openRefs = await openJobsToRecheck(THEIRSTACK_SOURCE, THEIRSTACK_RECONCILE_MAX);
+  const closedRefs = await closedJobsToRecheck(THEIRSTACK_SOURCE, THEIRSTACK_RECONCILE_MAX);
+
+  await reconcileLinkedIn(summary, openRefs, closedRefs);
+  await reconcileTheirStack(summary, periodStart, creditsLeft, openRefs, closedRefs);
+}
+
+/** LinkedIn postings — free public-page check. 'unknown' (a block/error) never hides a job. */
+async function reconcileLinkedIn(
+  summary: PollSummary,
+  openRefs: RecheckRef[],
+  closedRefs: RecheckRef[],
+): Promise<void> {
+  const openLi = openRefs.filter((r) => isLinkedInJob(r.url)).slice(0, LINKEDIN_RECHECK_MAX);
+  const closedLi = closedRefs.filter((r) => isLinkedInJob(r.url)).slice(0, LINKEDIN_RECHECK_MAX);
+  if (openLi.length === 0 && closedLi.length === 0) return;
+
+  const open = await checkLinkedInStatuses(openLi);
+  summary.closed += await markJobsClosed(
+    THEIRSTACK_SOURCE,
+    open.closed.map((r) => ({ externalId: r.externalId, closedAt: null })),
+  );
+
+  const closed = await checkLinkedInStatuses(closedLi);
+  summary.reopened += await markJobsReopened(
+    THEIRSTACK_SOURCE,
+    closed.open.map((r) => r.externalId),
+  );
+
+  const unknown = open.unknown + closed.unknown;
+  const checked = openLi.length + closedLi.length;
+  const note =
+    unknown === checked && checked > 0 ? ' ::warning:: (all unknown — IP likely blocked)' : '';
+  console.log(
+    `[theirstack] linkedin: checked=${checked} nowClosed=${open.closed.length} ` +
+      `reopened=${closed.open.length} unknown=${unknown}${note}`,
+  );
+}
+
+/** Bucket a batch of LinkedIn refs by their live accepting status (concurrency-bounded, polite). */
+async function checkLinkedInStatuses(
+  refs: RecheckRef[],
+): Promise<{ closed: RecheckRef[]; open: RecheckRef[]; unknown: number }> {
+  const results = await mapWithConcurrency(refs, LINKEDIN_CHECK_CONCURRENCY, async (ref) => ({
+    ref,
+    status: await linkedInAcceptingStatus(ref.url),
+  }));
+  return {
+    closed: results.filter((r) => r.status === 'closed').map((r) => r.ref),
+    open: results.filter((r) => r.status === 'open').map((r) => r.ref),
+    unknown: results.filter((r) => r.status === 'unknown').length,
+  };
+}
+
+/** Non-LinkedIn TheirStack jobs — closed_at lookup. Bills 1 credit per job that changed state. */
+async function reconcileTheirStack(
+  summary: PollSummary,
+  periodStart: string,
+  creditsLeft: number,
+  openRefs: RecheckRef[],
+  closedRefs: RecheckRef[],
+): Promise<void> {
   if (creditsLeft <= 0) return;
 
-  // Pass A: which of our visible, still-open jobs did TheirStack close?
-  const openCap = Math.min(THEIRSTACK_RECONCILE_MAX, creditsLeft);
-  const openIds = await openExternalIdsToRecheck(THEIRSTACK_SOURCE, openCap);
+  const openIds = openRefs
+    .filter((r) => !isLinkedInJob(r.url))
+    .map((r) => r.externalId)
+    .slice(0, Math.min(THEIRSTACK_RECONCILE_MAX, creditsLeft));
   if (openIds.length > 0) {
     const nowClosed = await fetchClosureStatus(openIds, true);
     await addTheirStackCreditsUsed(periodStart, nowClosed.length); // 1 credit per job returned
@@ -255,10 +322,11 @@ async function reconcileClosures(
     summary.closed += await markJobsClosed(THEIRSTACK_SOURCE, nowClosed);
   }
 
-  // Pass B: did any job we previously marked closed reopen?
   if (creditsLeft <= 0) return;
-  const closedCap = Math.min(THEIRSTACK_RECONCILE_MAX, creditsLeft);
-  const closedIds = await closedExternalIds(THEIRSTACK_SOURCE, closedCap);
+  const closedIds = closedRefs
+    .filter((r) => !isLinkedInJob(r.url))
+    .map((r) => r.externalId)
+    .slice(0, Math.min(THEIRSTACK_RECONCILE_MAX, creditsLeft));
   if (closedIds.length > 0) {
     const nowOpen = await fetchClosureStatus(closedIds, false);
     await addTheirStackCreditsUsed(periodStart, nowOpen.length);

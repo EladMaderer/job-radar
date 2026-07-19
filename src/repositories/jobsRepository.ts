@@ -478,34 +478,41 @@ export async function updateJobFields(job: Job): Promise<void> {
 
 // --- Closure reconciliation (Step 2) --------------------------------------------------------
 
+/** A stored job reduced to what the reconciliation needs: its id and URL (URL routes the check —
+ * LinkedIn postings are checked on LinkedIn, everything else via TheirStack's closed_at). */
+export interface RecheckRef {
+  externalId: string;
+  url: string;
+}
+
 /**
- * External ids of currently-VISIBLE, still-open jobs for a source, oldest-seen first — the set to
- * re-check for closure. Limited to relevant rows the user hasn't dispositioned ('new'/'interested');
- * once they've applied or are interviewing, a posting closing is expected and we keep tracking it.
- * `limit` bounds the reconciliation's worst-case credit spend.
+ * Currently-VISIBLE, still-open jobs for a source, oldest-seen first — the set to re-check for
+ * closure. Limited to relevant rows the user hasn't dispositioned ('new'/'interested'); once they've
+ * applied or are interviewing, a posting closing is expected and we keep tracking it. `limit` bounds
+ * the reconciliation's worst-case work/credit spend.
  */
-export async function openExternalIdsToRecheck(source: string, limit: number): Promise<string[]> {
-  const { rows } = await pool.query<{ external_id: string }>(
-    `SELECT external_id FROM jobs
+export async function openJobsToRecheck(source: string, limit: number): Promise<RecheckRef[]> {
+  const { rows } = await pool.query<{ external_id: string; url: string }>(
+    `SELECT external_id, url FROM jobs
       WHERE source = $1 AND closed_at IS NULL AND relevant = true
         AND status IN ('new', 'interested')
       ORDER BY first_seen_at ASC
       LIMIT $2`,
     [source, limit],
   );
-  return rows.map((r) => r.external_id);
+  return rows.map((r) => ({ externalId: r.external_id, url: r.url }));
 }
 
-/** External ids of jobs we've marked closed for a source — candidates to detect reopening. */
-export async function closedExternalIds(source: string, limit: number): Promise<string[]> {
-  const { rows } = await pool.query<{ external_id: string }>(
-    `SELECT external_id FROM jobs
+/** Jobs we've marked closed for a source — candidates to detect reopening. */
+export async function closedJobsToRecheck(source: string, limit: number): Promise<RecheckRef[]> {
+  const { rows } = await pool.query<{ external_id: string; url: string }>(
+    `SELECT external_id, url FROM jobs
       WHERE source = $1 AND closed_at IS NOT NULL
       ORDER BY closed_at ASC
       LIMIT $2`,
     [source, limit],
   );
-  return rows.map((r) => r.external_id);
+  return rows.map((r) => ({ externalId: r.external_id, url: r.url }));
 }
 
 /** Mark jobs closed (hidden from the dashboard). Only flips still-open rows. Returns rows updated. */
