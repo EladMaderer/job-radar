@@ -31,7 +31,6 @@ const COLUMNS: Column[] = [
   { label: 'Source' },
   { key: 'posted', label: 'Published' },
   { key: 'status', label: 'Status' },
-  { key: 'firstSeen', label: 'First seen' },
 ];
 
 function scoreClass(score: number | null): string {
@@ -39,15 +38,6 @@ function scoreClass(score: number | null): string {
   if (score >= 70) return 'high';
   if (score >= 45) return 'mid';
   return 'low';
-}
-
-function formatDate(iso: string | null): string {
-  if (!iso) return '—';
-  return new Date(iso).toLocaleDateString(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  });
 }
 
 function formatDateTime(iso: string | null): string {
@@ -348,9 +338,6 @@ export function JobsList() {
                         value={job.statusNote}
                         onSave={(note) => changeStatusNote(job, note)}
                       />
-                    </td>
-                    <td className="date" data-label="First seen">
-                      {formatDate(job.firstSeenAt)}
                     </td>
                   </tr>
                 ))}

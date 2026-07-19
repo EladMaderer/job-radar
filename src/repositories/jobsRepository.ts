@@ -301,7 +301,6 @@ export interface JobListItem {
 /** Whitelisted sort keys -> columns. Whitelisting keeps the ORDER BY clause injection-proof. */
 export const SORT_COLUMNS = {
   score: 'fit_score',
-  firstSeen: 'first_seen_at',
   posted: 'posted_at',
   company: 'company',
   title: 'title',
@@ -324,7 +323,7 @@ export interface ListJobsFilters {
 
 const LIST_DEFAULT_LIMIT = 100;
 const LIST_MAX_LIMIT = 500;
-const DEFAULT_SORT: SortKey = 'firstSeen';
+const DEFAULT_SORT: SortKey = 'posted';
 const DEFAULT_ORDER: SortOrder = 'desc';
 
 /** Columns selected/returned for a dashboard job row (kept in one place for list + update). */

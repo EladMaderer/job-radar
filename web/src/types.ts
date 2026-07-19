@@ -41,7 +41,7 @@ export function statusLabel(status: JobStatus): string {
   return status.replace(/_/g, ' ');
 }
 
-export type SortKey = 'score' | 'firstSeen' | 'posted' | 'company' | 'title' | 'status';
+export type SortKey = 'score' | 'posted' | 'company' | 'title' | 'status';
 export type SortOrder = 'asc' | 'desc';
 
 // --- Resume / guidance feature ---
