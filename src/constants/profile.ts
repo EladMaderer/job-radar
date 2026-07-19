@@ -37,14 +37,38 @@ Boosts: React Native focus; senior + AI/AI-tooling product; commute-zone or remo
 
 Judge by the ACTUAL focus and requirements in the description, not just title keywords — a "Full Stack" title with "Fluent in Python" and only ~20% React is backend-primary and must be DROPPED. In "why", give a one-sentence justification, and if you dropped it, say why (e.g. "no React/RN — backend-primary").`;
 
-/** Render a job into the user-turn text for the scorer. Description is truncated to bound cost. */
+/**
+ * How much of a description the scorer sees. Postings put company boilerplate FIRST and the
+ * requirements — the text that actually decides fit — LAST, so a head-only cut systematically hides
+ * the deciding evidence. Measured at the old 1200-char limit: 90% of stored jobs were truncated,
+ * and a "Proficiency with JavaScript, Node.js, Vue\React and PostgreSQL" requirement sitting at
+ * char 1482 was never seen — the role scored as a frontend fit on its intro alone.
+ * 8000 covers ~90% of postings whole (p90 = 7340). Cost is ~$0.002/job on Haiku — negligible.
+ */
+export const MAX_DESCRIPTION_CHARS = 8000;
+
+/** Chars kept from the END when a description must still be cut — requirements live at the end. */
+const TAIL_CHARS = 2500;
+
+/**
+ * Trim a description to the scorer's budget. Beyond the budget it keeps the head AND the tail
+ * (with an elision marker between), so the requirements section survives even on the longest
+ * postings — a plain head-only slice is what hid them before.
+ */
+export function trimDescriptionForScoring(description: string): string {
+  if (description.length <= MAX_DESCRIPTION_CHARS) return description;
+  const head = description.slice(0, MAX_DESCRIPTION_CHARS - TAIL_CHARS);
+  return `${head}\n[…]\n${description.slice(-TAIL_CHARS)}`;
+}
+
+/** Render a job into the user-turn text for the scorer. Description is trimmed to bound cost. */
 export function renderJobForScoring(job: {
   title: string;
   company: string;
   location: string | null;
   description: string | null;
 }): string {
-  const description = (job.description ?? '').slice(0, 1200);
+  const description = trimDescriptionForScoring(job.description ?? '');
   return [
     `Title: ${job.title}`,
     `Company: ${job.company}`,

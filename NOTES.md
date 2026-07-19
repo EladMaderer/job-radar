@@ -667,3 +667,20 @@ language so it doubles as an interview script.
   can't mass-halt the board). GitHub Actions runners may well be blocked by LinkedIn; if the log
   shows `all unknown — IP likely blocked`, LinkedIn detection is dead there and only TheirStack's
   weaker `closed_at` signal remains.
+
+## The scorer was reading only the first 1200 chars of a description
+
+- **Decision:** Raise the scored slice of a description from 1,200 to 8,000 chars, and when a
+  posting is still longer, send the **head AND the tail** (with an `[…]` marker) instead of a
+  head-only slice. `trimDescriptionForScoring()` in `src/constants/profile.ts`.
+- **Why:** Job postings put company boilerplate FIRST and requirements LAST, so a head-only cut
+  systematically hides the exact text that decides fit. Measured: **90% of stored jobs (3,630/4,036)
+  were being truncated**, median length ~3,000, p90 7,340. A real miss — Unframe "Full Stack
+  Software Engineer" — had "Proficiency with JavaScript, Node.js, Vue\React and PostgreSQL" at
+  char 1,482, past the cutoff, so it scored as a frontend fit on its intro alone. With the full
+  text the scorer drops it as backend-primary. 8,000 covers ~90% of postings whole; head+tail
+  guarantees the requirements survive on the rest.
+- **Trade-off:** More input tokens per scored job — ~$0.002/job on Haiku 4.5, well under a dollar
+  a month at this volume, which is nothing against the cost of a wrong alert. Jobs already scored
+  keep their old verdicts until the `rescore` workflow is run (scoring is deliberately once-per-job
+  so the LLM is never re-billed on a normal cycle).
