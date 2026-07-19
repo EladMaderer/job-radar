@@ -1,17 +1,18 @@
 import Anthropic from '@anthropic-ai/sdk';
 import {
+  GUIDANCE_MAX_TOKENS,
+  GUIDANCE_MODEL,
+  GUIDANCE_SYSTEM_PROMPT,
   LLM_TIMEOUT_MS,
   MAX_RESUME_TEXT_CHARS,
-  PREP_MAX_TOKENS,
-  PREP_MODEL,
-  PREP_SYSTEM_PROMPT,
 } from '../constants/resume.js';
 
 /**
- * One-shot interview prep brief (markdown). The candidate's resume text + private context ride
- * along as context when available so the pain-point analysis connects to their real background.
+ * Resume guidance: read a job description against the candidate's resume text + private context
+ * and return a markdown brief on what to emphasize/cut/position honestly. The candidate edits
+ * their own resume from it — we never rewrite the resume.
  */
-export function createInterviewPrep(apiKey: string) {
+export function createResumeGuidance(apiKey: string) {
   const client = new Anthropic({ apiKey, timeout: LLM_TIMEOUT_MS });
 
   return {
@@ -33,13 +34,14 @@ export function createInterviewPrep(apiKey: string) {
         parts.push(`PRIVATE CONTEXT — the candidate's real depth of experience:\n${args.context}`);
       }
       const message = await client.messages.create({
-        model: PREP_MODEL,
-        max_tokens: PREP_MAX_TOKENS,
-        system: PREP_SYSTEM_PROMPT,
+        model: GUIDANCE_MODEL,
+        max_tokens: GUIDANCE_MAX_TOKENS,
+        system: GUIDANCE_SYSTEM_PROMPT,
         messages: [{ role: 'user', content: parts.join('\n\n') }],
       });
       const text = message.content.find((b) => b.type === 'text');
-      if (!text || text.type !== 'text') throw new Error('Prep: no text block in model response');
+      if (!text || text.type !== 'text')
+        throw new Error('Guidance: no text block in model response');
       return text.text;
     },
   };

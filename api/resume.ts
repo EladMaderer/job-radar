@@ -1,38 +1,28 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { requireAuth } from './_auth.js';
 import {
-  approveCapture,
   getResume,
   getResumePdf,
   saveContext,
+  saveResumeText,
   upsertResume,
   type ResumeRow,
 } from '../src/repositories/resumeRepository.js';
 import { decodeAndValidatePdf } from '../src/services/resumePdf.js';
-import { renderResumeHtml } from '../src/services/resumeRender.js';
-import { MAX_CAPTURE_PAGES } from '../src/constants/resume.js';
+import { MAX_RESUME_TEXT_CHARS } from '../src/constants/resume.js';
 
 /**
- * GET  /api/resume        -> { resume: meta | null } (meta includes server-rendered preview html)
- * GET  /api/resume?pdf=1  -> the original PDF bytes (for client-side page re-rendering)
- * PUT  /api/resume        -> upload/replace { filename, dataBase64, pageCount, pageSize }
- * PATCH /api/resume       -> { approved: true } marks the capture approved, or { context: string }
- *                            saves the private real-experience notes
+ * GET   /api/resume        -> { resume: meta | null }
+ * GET   /api/resume?pdf=1  -> the original PDF bytes (viewing + client re-extraction)
+ * PUT   /api/resume        -> upload/replace { filename, dataBase64, resumeText }
+ * PATCH /api/resume        -> { context } saves private notes, or { resumeText } back-fills text
  */
-
-/** Serialize the row for the client; renders the preview HTML when a capture exists. */
-export function toClientResume(row: ResumeRow) {
-  const captured = row.content !== null && row.css !== null;
+function toClientResume(row: ResumeRow) {
   return {
     filename: row.filename,
-    pageCount: row.pageCount,
-    pageSize: row.pageSize,
     uploadedAt: row.uploadedAt,
-    capturedAt: row.capturedAt,
-    approvedAt: row.approvedAt,
-    captureMessages: row.captureMessages,
     context: row.context,
-    html: captured ? renderResumeHtml(row.content!, row.css!, row.fontLinks, row.pageSize) : null,
+    hasText: !!row.resumeText && row.resumeText.length > 0,
   };
 }
 
@@ -59,27 +49,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
     if (req.method === 'PUT') {
       const body = req.body as
-        | {
-            filename?: string;
-            dataBase64?: string;
-            pageCount?: number;
-            pageSize?: { widthPt: number; heightPt: number };
-          }
-        | undefined;
-      if (!body?.filename || !body.dataBase64 || !body.pageCount || !body.pageSize) {
-        res
-          .status(400)
-          .json({ error: 'filename, dataBase64, pageCount and pageSize are required' });
+        { filename?: string; dataBase64?: string; resumeText?: string } | undefined;
+      if (!body?.filename || !body.dataBase64) {
+        res.status(400).json({ error: 'filename and dataBase64 are required' });
         return;
       }
       if (!/\.pdf$/i.test(body.filename)) {
         res.status(400).json({ error: 'Only PDF resumes are supported' });
-        return;
-      }
-      if (body.pageCount > MAX_CAPTURE_PAGES) {
-        res.status(400).json({
-          error: `Resume has ${body.pageCount} pages — max supported is ${MAX_CAPTURE_PAGES}`,
-        });
         return;
       }
       let data: Buffer;
@@ -89,20 +65,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         res.status(400).json({ error: (err as Error).message });
         return;
       }
-      await upsertResume(body.filename, data, body.pageCount, body.pageSize);
+      await upsertResume(
+        body.filename,
+        data,
+        (body.resumeText ?? '').slice(0, MAX_RESUME_TEXT_CHARS),
+      );
       const row = await getResume();
       res.status(200).json({ resume: row ? toClientResume(row) : null });
       return;
     }
 
     if (req.method === 'PATCH') {
-      const body = req.body as { approved?: boolean; context?: string } | undefined;
+      const body = req.body as { context?: string; resumeText?: string } | undefined;
       if (typeof body?.context === 'string') {
         await saveContext(body.context);
-      } else if (body?.approved === true) {
-        await approveCapture();
+      } else if (typeof body?.resumeText === 'string') {
+        await saveResumeText(body.resumeText.slice(0, MAX_RESUME_TEXT_CHARS));
       } else {
-        res.status(400).json({ error: 'Expected { approved: true } or { context: string }' });
+        res.status(400).json({ error: 'Expected { context } or { resumeText }' });
         return;
       }
       const row = await getResume();

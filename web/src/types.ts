@@ -39,44 +39,22 @@ export function statusLabel(status: JobStatus): string {
 export type SortKey = 'score' | 'firstSeen' | 'posted' | 'company' | 'title' | 'status';
 export type SortOrder = 'asc' | 'desc';
 
-// --- Resume / tailoring feature ---
+// --- Resume / guidance feature ---
 
 export interface JobDetail extends JobListItem {
   description: string | null;
 }
 
-export interface ChatMsg {
-  role: 'user' | 'assistant';
-  text: string;
-  at: string;
-}
-
 export interface ResumeMeta {
   filename: string;
-  pageCount: number;
-  pageSize: { widthPt: number; heightPt: number };
   uploadedAt: string;
-  capturedAt: string | null;
-  approvedAt: string | null;
-  captureMessages: ChatMsg[];
-  context: string | null; // private real-experience notes; guides tailoring, never shown
-  html: string | null; // server-rendered preview; null until captured
+  context: string | null; // private real-experience notes; guides guidance/prep, never shown
+  hasText: boolean; // whether the extracted resume text is stored
 }
 
-export interface TailorChange {
-  where: string;
-  what: string;
-}
-
-export interface TailorState {
-  content: unknown;
-  changes: TailorChange[];
-  note: string | null;
-  messages: ChatMsg[];
-  updatedAt: string;
-  company: string;
-  title: string;
-  html: string;
+export interface GuidanceState {
+  content: string; // markdown: what to emphasize in the resume for this role
+  createdAt: string;
 }
 
 export interface PrepState {

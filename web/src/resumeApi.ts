@@ -22,8 +22,7 @@ export async function fetchResumePdfBytes(): Promise<ArrayBuffer> {
 export async function uploadResume(body: {
   filename: string;
   dataBase64: string;
-  pageCount: number;
-  pageSize: { widthPt: number; heightPt: number };
+  resumeText: string;
 }): Promise<ResumeMeta | null> {
   return readResume(
     await authFetch('/api/resume', {
@@ -34,36 +33,23 @@ export async function uploadResume(body: {
   );
 }
 
-export async function captureResume(
-  pages: { imageBase64: string }[],
-  text: string,
-  message?: string,
-): Promise<ResumeMeta | null> {
-  return readResume(
-    await authFetch('/api/resume/capture', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ pages, text, message }),
-    }),
-  );
-}
-
-export async function approveResume(): Promise<ResumeMeta | null> {
-  return readResume(
-    await authFetch('/api/resume', {
-      method: 'PATCH',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ approved: true }),
-    }),
-  );
-}
-
 export async function saveResumeContext(context: string): Promise<ResumeMeta | null> {
   return readResume(
     await authFetch('/api/resume', {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ context }),
+    }),
+  );
+}
+
+/** Back-fill the extracted text for an already-uploaded resume (client re-extracts). */
+export async function saveResumeText(resumeText: string): Promise<ResumeMeta | null> {
+  return readResume(
+    await authFetch('/api/resume', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ resumeText }),
     }),
   );
 }

@@ -2,14 +2,14 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { requireAuth } from '../../_auth.js';
 import { getJobById } from '../../../src/repositories/jobsRepository.js';
 import { getResume } from '../../../src/repositories/resumeRepository.js';
-import { getPrep, upsertPrep } from '../../../src/repositories/prepRepository.js';
-import { createInterviewPrep } from '../../../src/services/interviewPrep.js';
+import { getGuidance, upsertGuidance } from '../../../src/repositories/guidanceRepository.js';
+import { createResumeGuidance } from '../../../src/services/resumeGuidance.js';
 
 /**
- * GET  /api/jobs/:id/prep — stored interview-prep brief (markdown), or null.
- * POST /api/jobs/:id/prep — generate/regenerate (overwrites). LLM call — maxDuration raised.
+ * GET  /api/jobs/:id/guidance — stored resume guidance (markdown), or null.
+ * POST /api/jobs/:id/guidance — generate/regenerate: what to emphasize in the resume for this role.
+ * LLM call — maxDuration raised in vercel.json.
  */
-
 function first(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value;
 }
@@ -25,10 +25,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
   try {
     if (req.method === 'GET') {
-      const prep = await getPrep(id);
-      res.status(200).json({
-        prep: prep ? { content: prep.content, createdAt: prep.createdAt } : null,
-      });
+      const g = await getGuidance(id);
+      res.status(200).json({ guidance: g ? { content: g.content, createdAt: g.createdAt } : null });
       return;
     }
 
@@ -48,18 +46,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         return;
       }
       const resume = await getResume();
-      const prep = createInterviewPrep(apiKey);
-      const content = await prep.generate({
+      const guidance = createResumeGuidance(apiKey);
+      const content = await guidance.generate({
         jobDescription: job.description,
         company: job.company,
         title: job.title,
         resumeText: resume?.resumeText ?? null,
         context: resume?.context ?? null,
       });
-      await upsertPrep(id, job.company, job.title, content);
-      const saved = await getPrep(id);
+      await upsertGuidance(id, job.company, job.title, content);
+      const saved = await getGuidance(id);
       res.status(200).json({
-        prep: saved ? { content: saved.content, createdAt: saved.createdAt } : null,
+        guidance: saved ? { content: saved.content, createdAt: saved.createdAt } : null,
       });
       return;
     }
@@ -67,7 +65,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     res.setHeader('Allow', 'GET, POST');
     res.status(405).json({ error: 'Method Not Allowed' });
   } catch (err) {
-    console.error('[api/jobs/:id/prep] error:', err);
+    console.error('[api/jobs/:id/guidance] error:', err);
     res.status(500).json({ error: 'Internal Server Error' });
   }
 }

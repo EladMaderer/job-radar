@@ -4,25 +4,14 @@ import ReactMarkdown from 'react-markdown';
 import { updateJobStatus } from '../api.js';
 import { AuthError } from '../auth.js';
 import { useAuth } from '../AuthContext.js';
-import { fetchResume } from '../resumeApi.js';
-import {
-  downloadTailorPdf,
-  fetchJob,
-  fetchPrep,
-  fetchTailor,
-  postPrep,
-  postTailor,
-  resetTailor,
-} from '../tailorApi.js';
-import { ResumePreview } from '../components/ResumePreview.js';
+import { fetchGuidance, fetchJob, fetchPrep, postGuidance, postPrep } from '../guidanceApi.js';
 import {
   STATUSES,
   statusLabel,
+  type GuidanceState,
   type JobDetail,
   type JobStatus,
   type PrepState,
-  type ResumeMeta,
-  type TailorState,
 } from '../types.js';
 
 export function JobDetailPage() {
@@ -31,17 +20,15 @@ export function JobDetailPage() {
   const { logout } = useAuth();
 
   const [job, setJob] = useState<JobDetail | null | undefined>(undefined);
-  const [resume, setResume] = useState<ResumeMeta | null>(null);
-  const [tailor, setTailor] = useState<TailorState | null>(null);
+  const [guidance, setGuidance] = useState<GuidanceState | null>(null);
   const [prep, setPrep] = useState<PrepState | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [tailorBusy, setTailorBusy] = useState(false);
+  const [guidanceBusy, setGuidanceBusy] = useState(false);
   const [prepBusy, setPrepBusy] = useState(false);
-  const [message, setMessage] = useState('');
 
-  const onErr = (err: unknown, setter?: (m: string) => void) => {
+  const onErr = (err: unknown) => {
     if (err instanceof AuthError) logout('Your session expired — sign in again.');
-    else (setter ?? setError)(err instanceof Error ? err.message : String(err));
+    else setError(err instanceof Error ? err.message : String(err));
   };
 
   useEffect(() => {
@@ -55,11 +42,8 @@ export function JobDetailPage() {
         setJob(null);
         onErr(e);
       });
-    fetchResume()
-      .then(setResume)
-      .catch(() => {});
-    fetchTailor(id)
-      .then(setTailor)
+    fetchGuidance(id)
+      .then(setGuidance)
       .catch(() => {});
     fetchPrep(id)
       .then(setPrep)
@@ -79,37 +63,15 @@ export function JobDetailPage() {
     }
   }
 
-  async function generateTailor(msg?: string) {
-    setTailorBusy(true);
+  async function generateGuidance() {
+    setGuidanceBusy(true);
     setError(null);
     try {
-      const next = await postTailor(id, msg);
-      setTailor(next);
-      setMessage('');
+      setGuidance(await postGuidance(id));
     } catch (err) {
       onErr(err);
     } finally {
-      setTailorBusy(false);
-    }
-  }
-
-  async function startOver() {
-    setTailorBusy(true);
-    try {
-      await resetTailor(id);
-      setTailor(null);
-    } catch (err) {
-      onErr(err);
-    } finally {
-      setTailorBusy(false);
-    }
-  }
-
-  async function download() {
-    try {
-      await downloadTailorPdf(id);
-    } catch (err) {
-      onErr(err);
+      setGuidanceBusy(false);
     }
   }
 
@@ -135,8 +97,6 @@ export function JobDetailPage() {
         <div className="state-msg error">{error ?? 'Job not found.'}</div>
       </div>
     );
-
-  const resumeReady = !!resume?.capturedAt && !!resume?.html;
 
   return (
     <div className="page detail-page">
@@ -174,68 +134,31 @@ export function JobDetailPage() {
 
       {error && <div className="state-msg error">{error}</div>}
 
-      {/* ---- Tailored resume ---- */}
+      {/* ---- Resume guidance ---- */}
       <section className="panel">
-        <h3>Tailored resume</h3>
-        {!resume ? (
-          <div className="state-msg">Upload your CV (top bar) to tailor it to this role.</div>
-        ) : !resumeReady ? (
-          <div className="state-msg">
-            Capture your CV design first — <Link to="/resume">open the CV page</Link>.
-          </div>
-        ) : !job.description && !tailor ? (
-          <div className="state-msg">
-            No job description was stored for this role, so it can’t be tailored.
-          </div>
-        ) : !tailor ? (
-          <div className="tailor-empty">
-            <p className="muted">
-              Generate a version of your resume tuned to this job — same facts, reframed and
-              reordered to lead with what they’re looking for.
-            </p>
-            <button className="primary-btn" disabled={tailorBusy} onClick={() => generateTailor()}>
-              {tailorBusy ? 'Tailoring… (~30–60s)' : 'Generate tailored resume'}
-            </button>
-          </div>
+        <h3>Resume guidance</h3>
+        {!job.description && !guidance ? (
+          <div className="state-msg">No job description stored — can’t analyze this role.</div>
         ) : (
-          <div className="tailor-grid">
-            <ResumePreview html={tailor.html} pageSize={resume.pageSize} />
-            <div className="tailor-side">
-              {tailor.note && <p className="tailor-note">{tailor.note}</p>}
-              {tailor.changes.length > 0 && (
-                <ul className="changes">
-                  {tailor.changes.map((c, i) => (
-                    <li key={i}>
-                      <b>{c.where}:</b> {c.what}
-                    </li>
-                  ))}
-                </ul>
-              )}
-              <div className="chat-box">
-                <textarea
-                  placeholder="Ask for changes — e.g. “lead with the React Native experience”, “shorten the summary”, “emphasize the AI work”."
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                  disabled={tailorBusy}
-                />
-                <div className="chat-actions">
-                  <button
-                    className="secondary-btn"
-                    disabled={tailorBusy || !message.trim()}
-                    onClick={() => generateTailor(message.trim())}
-                  >
-                    {tailorBusy ? 'Working…' : 'Apply changes'}
-                  </button>
-                  <button className="primary-btn" disabled={tailorBusy} onClick={download}>
-                    Download PDF
-                  </button>
-                  <button className="ghost-btn" disabled={tailorBusy} onClick={startOver}>
-                    Start over
-                  </button>
-                </div>
+          <>
+            {guidance ? (
+              <div className="prep-md">
+                <ReactMarkdown>{guidance.content}</ReactMarkdown>
               </div>
-            </div>
-          </div>
+            ) : (
+              <p className="muted">
+                Reads this job against your resume + private context and tells you what to
+                emphasize, cut, and position honestly — then edit your resume yourself.
+              </p>
+            )}
+            <button className="secondary-btn" disabled={guidanceBusy} onClick={generateGuidance}>
+              {guidanceBusy
+                ? 'Analyzing…'
+                : guidance
+                  ? 'Regenerate'
+                  : 'What should my resume emphasize?'}
+            </button>
+          </>
         )}
       </section>
 

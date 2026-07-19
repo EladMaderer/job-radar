@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { AuthError } from '../auth.js';
 import { useAuth } from '../AuthContext.js';
 import { fetchResume, uploadResume } from '../resumeApi.js';
-import { loadPdfInfo, readFile } from '../lib/pdf.js';
+import { extractText, readFile } from '../lib/pdf.js';
 import type { ResumeMeta } from '../types.js';
 
 const MAX_MB = 3;
@@ -38,13 +38,8 @@ export function Header({ onLogout }: { onLogout: () => void }) {
     setBusy(true);
     try {
       const { buffer, base64 } = await readFile(file);
-      const info = await loadPdfInfo(buffer);
-      const meta = await uploadResume({
-        filename: file.name,
-        dataBase64: base64,
-        pageCount: info.pageCount,
-        pageSize: info.pageSize,
-      });
+      const resumeText = await extractText(buffer);
+      const meta = await uploadResume({ filename: file.name, dataBase64: base64, resumeText });
       setResume(meta);
       navigate('/resume');
     } catch (err) {
@@ -73,9 +68,8 @@ export function Header({ onLogout }: { onLogout: () => void }) {
           }}
         />
         {resume ? (
-          <Link to="/resume" className="cv-link" title="View / tailor your CV design">
+          <Link to="/resume" className="cv-link" title="Your CV + private context">
             📄 {resume.filename}
-            {!resume.capturedAt && <span className="cv-badge">capture needed</span>}
           </Link>
         ) : (
           <button className="cv-upload" disabled={busy} onClick={() => fileRef.current?.click()}>

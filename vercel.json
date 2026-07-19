@@ -5,9 +5,7 @@
   "framework": null,
   "rewrites": [{ "source": "/((?!api/).*)", "destination": "/index.html" }],
   "functions": {
-    "api/resume/capture.ts": { "maxDuration": 300 },
-    "api/jobs/[id]/tailor.ts": { "maxDuration": 300 },
-    "api/jobs/[id]/prep.ts": { "maxDuration": 300 },
-    "api/jobs/[id]/tailor/pdf.ts": { "maxDuration": 300 }
+    "api/jobs/[id]/guidance.ts": { "maxDuration": 300 },
+    "api/jobs/[id]/prep.ts": { "maxDuration": 300 }
   }
 }

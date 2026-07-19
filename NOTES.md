@@ -5,6 +5,22 @@ language so it doubles as an interview script.
 
 ---
 
+## Resume feature: simplified to text GUIDANCE (design-capture removed)
+
+- **Decision:** Dropped the whole design-capture / tailored-PDF pipeline. The CV page now just holds
+  the uploaded PDF + extracted text + a private context box. Each job page has one AI action —
+  **"What should my resume emphasize?"** — that reads the JD against the resume text + context and
+  returns a markdown brief (emphasize / cut / match-vs-gaps, honest). The user edits their own
+  resume from it. Interview prep unchanged. Removed: capture/tailor/render/pdf services + endpoints,
+  the content-JSON schema, `@sparticuz/chromium` + `puppeteer-core`, and (migration 010) the
+  `resume` capture columns + `job_tailors` table; added `resume.resume_text` + `job_guidance`.
+- **Why:** The user decided the exact-design tailored PDF was more machinery than they wanted — they'd
+  rather get guidance and edit the resume themselves. This cut ~10 files, 2 heavy deps, and the whole
+  Chromium/Vercel-render risk, while keeping what they actually use (resume knowledge + real-experience
+  context feeding honest per-role advice).
+- **Trade-off:** No more one-click design-matched resume download — the user hand-edits. Guidance is
+  text only. The earlier capture notes below are historical (that pipeline no longer exists).
+
 ## Resume tailoring: one-time DESIGN CAPTURE, not PDF editing
 
 - **Decision:** A PDF can't be reflow-edited, so instead of editing the file we capture its design

@@ -3,9 +3,7 @@ import { parse } from 'node:url';
 import jobsHandler from '../api/jobs.js';
 import jobByIdHandler from '../api/jobs/[id].js';
 import resumeHandler from '../api/resume.js';
-import resumeCaptureHandler from '../api/resume/capture.js';
-import tailorHandler from '../api/jobs/[id]/tailor.js';
-import tailorPdfHandler from '../api/jobs/[id]/tailor/pdf.js';
+import guidanceHandler from '../api/jobs/[id]/guidance.js';
 import prepHandler from '../api/jobs/[id]/prep.js';
 
 /**
@@ -64,12 +62,8 @@ const server = createServer((req, res) => {
 
     // Job-scoped subroutes (most specific first).
     let m: RegExpExecArray | null;
-    if ((m = /^\/api\/jobs\/([^/]+)\/tailor\/pdf$/.exec(path))) {
-      await run(tailorPdfHandler, { ...q, id: m[1]! });
-      return;
-    }
-    if ((m = /^\/api\/jobs\/([^/]+)\/tailor$/.exec(path))) {
-      await run(tailorHandler, { ...q, id: m[1]! });
+    if ((m = /^\/api\/jobs\/([^/]+)\/guidance$/.exec(path))) {
+      await run(guidanceHandler, { ...q, id: m[1]! });
       return;
     }
     if ((m = /^\/api\/jobs\/([^/]+)\/prep$/.exec(path))) {
@@ -82,10 +76,6 @@ const server = createServer((req, res) => {
     }
     if (path === '/api/jobs') {
       await run(jobsHandler, q);
-      return;
-    }
-    if (path === '/api/resume/capture') {
-      await run(resumeCaptureHandler, q);
       return;
     }
     if (path === '/api/resume') {
