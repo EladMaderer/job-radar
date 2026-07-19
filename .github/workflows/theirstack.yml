@@ -21,7 +21,7 @@ concurrency:
 jobs:
   theirstack:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     # Job-level env: config validation loads the full schema on import, so every step that runs
     # our code (migrate as well as poll) needs all vars, not just the ones it appears to use.
     env:
