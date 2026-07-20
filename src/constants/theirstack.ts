@@ -51,11 +51,15 @@ export const THEIRSTACK_COUNTRY_CODES = ['IL'];
 export const THEIRSTACK_FIRST_RUN_MAX_AGE_DAYS = 60;
 
 /**
- * Overlap subtracted from the discovered_at watermark so boundary jobs aren't missed. Trimmed to
- * 30 min for the every-2h cadence — frequent runs need little margin, and a smaller overlap means
- * fewer re-billed boundary jobs.
+ * Overlap subtracted from the discovered_at watermark so boundary jobs aren't missed.
+ *
+ * MUST stay well under the run interval: the overlap window is re-fetched every run, and every job
+ * returned costs a credit even if we already stored it. At the old every-2h cadence a 30-min
+ * overlap re-scanned 25% of each window; on the hourly Sun–Thu schedule that would be 50% — so it
+ * drops to 10 min (~17%), keeping credit use flat while runs nearly double. Hourly runs need less
+ * margin anyway: the next run is only an hour behind, not four.
  */
-export const THEIRSTACK_WATERMARK_OVERLAP_MS = 30 * 60 * 1000; // 30 minutes
+export const THEIRSTACK_WATERMARK_OVERLAP_MS = 10 * 60 * 1000; // 10 minutes
 
 /**
  * Closure reconciliation (Step 2): re-check the closure status of stored TheirStack jobs so ones
