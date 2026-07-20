@@ -12,6 +12,13 @@ export interface JobAlert {
   recruiterLinkedIn?: string | null;
 }
 
+/** A job that started accepting applications again (was 'halted', now back to 'new'). */
+export interface ReopenedJob {
+  company: string;
+  title: string;
+  url: string;
+}
+
 /**
  * Send-only notifier. Sends ONE alert at a time and throws on failure, so the caller can mark
  * each job alerted only after its message actually lands (a failed send is retried next cycle,
@@ -19,4 +26,6 @@ export interface JobAlert {
  */
 export interface Notifier {
   sendAlert(alert: JobAlert): Promise<void>;
+  /** A plain informational message with no Apply button — used for the reopened-jobs notice. */
+  sendNotice(text: string): Promise<void>;
 }

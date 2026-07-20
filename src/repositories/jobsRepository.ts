@@ -1,6 +1,6 @@
 import type { Job } from '../ats/types.js';
 import { pool } from '../db/pool.js';
-import type { JobAlert } from '../notify/types.js';
+import type { JobAlert, ReopenedJob } from '../notify/types.js';
 
 /**
  * All SQL for the `jobs` table. The DB is both the history and the dedup memory, so these
@@ -557,13 +557,20 @@ export async function markJobsHalted(
   return updated;
 }
 
-/** A halted job started accepting again: back to 'new' so it re-enters the normal flow. */
-export async function markJobsReopened(source: string, externalIds: string[]): Promise<number> {
-  if (externalIds.length === 0) return 0;
-  const { rowCount } = await pool.query(
+/**
+ * A halted job started accepting again: back to 'new' so it re-enters the normal flow.
+ * Returns the rows it actually flipped, so the caller can name them in the Telegram notice.
+ */
+export async function markJobsReopened(
+  source: string,
+  externalIds: string[],
+): Promise<ReopenedJob[]> {
+  if (externalIds.length === 0) return [];
+  const { rows } = await pool.query<{ company: string; title: string; url: string }>(
     `UPDATE jobs SET status = 'new', closed_at = NULL
-       WHERE source = $1 AND external_id = ANY($2::text[]) AND status = 'halted'`,
+       WHERE source = $1 AND external_id = ANY($2::text[]) AND status = 'halted'
+     RETURNING company, title, url`,
     [source, externalIds],
   );
-  return rowCount ?? 0;
+  return rows;
 }

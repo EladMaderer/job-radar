@@ -1,6 +1,10 @@
 import type { Job } from '../ats/types.js';
 import { config } from '../config/env.js';
-import { MAX_ALERTS_PER_CYCLE, TELEGRAM_SEND_GAP_MS } from '../constants/messages.js';
+import {
+  formatReopenedNotice,
+  MAX_ALERTS_PER_CYCLE,
+  TELEGRAM_SEND_GAP_MS,
+} from '../constants/messages.js';
 import { getNotifier } from '../notify/index.js';
 import { adapterFor, COMPANIES } from '../registry/companies.js';
 import {
@@ -34,6 +38,7 @@ import {
   fetchTheirStackJobs,
   THEIRSTACK_SOURCE,
 } from '../sources/theirstack.js';
+import type { ReopenedJob } from '../notify/types.js';
 import type { Scorer } from '../scoring/types.js';
 
 export interface PollSummary {
@@ -46,7 +51,7 @@ export interface PollSummary {
   alerted: number; // alerts actually sent (and marked) this cycle
   failedAlerts: number; // sends that failed — stay pending, retried next cycle
   halted: number; // jobs newly detected as no longer accepting applications (status -> halted)
-  reopened: number; // halted jobs detected accepting again (status -> new)
+  reopenedJobs: ReopenedJob[]; // halted jobs detected accepting again (status -> new)
   baselineSeeded: string[]; // sources that baseline-seeded silently this cycle
   failedCompanies: string[];
 }
@@ -62,7 +67,7 @@ function emptySummary(): PollSummary {
     alerted: 0,
     failedAlerts: 0,
     halted: 0,
-    reopened: 0,
+    reopenedJobs: [],
     baselineSeeded: [],
     failedCompanies: [],
   };
@@ -231,8 +236,27 @@ export async function runTheirStackCycle(scorer: Scorer = getScorer()): Promise<
   await reconcileClosures(summary, periodStart, remaining - jobs.length);
 
   await sendPendingAlerts(summary);
+  await sendReopenedNotice(summary);
   logSummary('theirstack', summary);
   return summary;
+}
+
+/**
+ * Ping Telegram when a halted job starts accepting applications again — that's a role you can act
+ * on now, and nothing else would tell you. Sent ONLY when there is one: on the hourly schedule a
+ * per-run summary would be ~11 near-empty messages a day. New matches are excluded because they
+ * already get their own alert.
+ *
+ * Best-effort: a failed send is logged, never fatal, and NOT retried — unlike job alerts there's no
+ * pending flag for it. The status change itself is already committed and visible on the dashboard.
+ */
+async function sendReopenedNotice(summary: PollSummary): Promise<void> {
+  if (summary.reopenedJobs.length === 0) return;
+  try {
+    await getNotifier().sendNotice(formatReopenedNotice(summary.reopenedJobs));
+  } catch (err) {
+    console.error(`[theirstack] reopened notice failed to send: ${(err as Error).message}`);
+  }
 }
 
 /**
@@ -272,9 +296,11 @@ async function reconcileLinkedIn(
   );
 
   const closed = await checkLinkedInStatuses(closedLi);
-  summary.reopened += await markJobsReopened(
-    THEIRSTACK_SOURCE,
-    closed.open.map((r) => r.externalId),
+  summary.reopenedJobs.push(
+    ...(await markJobsReopened(
+      THEIRSTACK_SOURCE,
+      closed.open.map((r) => r.externalId),
+    )),
   );
 
   const unknown = open.unknown + closed.unknown;
@@ -331,9 +357,11 @@ async function reconcileTheirStack(
   if (closedIds.length > 0) {
     const nowOpen = await fetchClosureStatus(closedIds, false);
     await addTheirStackCreditsUsed(periodStart, nowOpen.length);
-    summary.reopened += await markJobsReopened(
-      THEIRSTACK_SOURCE,
-      nowOpen.map((j) => j.externalId),
+    summary.reopenedJobs.push(
+      ...(await markJobsReopened(
+        THEIRSTACK_SOURCE,
+        nowOpen.map((j) => j.externalId),
+      )),
     );
   }
 }
@@ -375,7 +403,7 @@ function logSummary(tag: string, s: PollSummary): void {
   console.log(
     `[${tag}] fetched=${s.fetched} candidates=${s.candidates} inserted=${s.inserted} ` +
       `updated=${s.updated} dropped=${s.dropped} suppressed=${s.suppressed} halted=${s.halted} ` +
-      `reopened=${s.reopened} alerted=${s.alerted} failedAlerts=${s.failedAlerts}${seeded}`,
+      `reopened=${s.reopenedJobs.length} alerted=${s.alerted} failedAlerts=${s.failedAlerts}${seeded}`,
   );
   if (s.failedCompanies.length > 0) {
     console.warn(`[${tag}] failed boards: ${s.failedCompanies.join(', ')}`);

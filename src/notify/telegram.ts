@@ -40,4 +40,7 @@ export const telegramNotifier: Notifier = {
   async sendAlert(alert: JobAlert): Promise<void> {
     await sendMessage(formatAlert(alert), applyButton(alert.url));
   },
+  async sendNotice(text: string): Promise<void> {
+    await sendMessage(text);
+  },
 };

@@ -698,3 +698,16 @@ language so it doubles as an interview script.
   and `VARCHAR(30)` in the DB. Redundant on purpose: the UI limit is a convenience, and the API is
   the real authority since it's reachable directly. Like `status`, the note is user-owned and the
   poller never writes it.
+
+## Telegram notice when a job reopens
+
+- **Decision:** When a `halted` job starts accepting applications again, send a Telegram message
+  naming the jobs with links. Sent ONLY when there is at least one reopen — never a per-run summary.
+  New matches are deliberately excluded (they already get their own alert). Added `sendNotice(text)`
+  to the `Notifier` interface, implemented by both the Telegram and console notifiers.
+- **Why:** A reopen is the one state change nothing else surfaces — the job quietly returns to the
+  dashboard and you'd never know to look. On the hourly Sun–Thu schedule a per-run summary would be
+  ~11 mostly-empty messages a day, which trains you to ignore the channel.
+- **Trade-off:** Best-effort, unlike job alerts. There's no pending flag for a notice, so a failed
+  send is logged and dropped rather than retried — the status change itself is already committed and
+  visible on the dashboard, so the worst case is a missed ping, not lost data.

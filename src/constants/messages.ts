@@ -1,4 +1,4 @@
-import type { JobAlert } from '../notify/types.js';
+import type { JobAlert, ReopenedJob } from '../notify/types.js';
 
 /** Cap alerts sent per cycle; any beyond the cap stay pending and send on the next cycle. */
 export const MAX_ALERTS_PER_CYCLE = 10;
@@ -20,4 +20,18 @@ export function formatAlert(alert: JobAlert): string {
     lines.push(`👤 ${alert.recruiterName ?? 'Hiring contact'} — ${alert.recruiterLinkedIn}`);
   }
   return lines.join('\n');
+}
+
+/**
+ * Notice for jobs that started accepting applications again. Sent only when there IS one — a
+ * per-run summary would be ~11 near-empty messages a day on the hourly schedule. New matches are
+ * NOT included here: they already get their own alert, and duplicating them would be noise.
+ */
+export function formatReopenedNotice(jobs: ReopenedJob[]): string {
+  const heading =
+    jobs.length === 1
+      ? '♻️ Reopened — accepting applications again'
+      : `♻️ ${jobs.length} reopened — accepting applications again`;
+  const blocks = jobs.map((j) => `• ${j.title}\n  ${j.company}\n  ${j.url}`);
+  return [heading, '', blocks.join('\n\n')].join('\n');
 }

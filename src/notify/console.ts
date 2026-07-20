@@ -10,4 +10,7 @@ export const consoleNotifier: Notifier = {
     console.log('\n' + formatAlert(alert));
     console.log(`[ Apply ] -> ${alert.url}`);
   },
+  async sendNotice(text: string): Promise<void> {
+    console.log('\n' + text);
+  },
 };
