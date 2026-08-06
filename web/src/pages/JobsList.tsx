@@ -22,6 +22,8 @@ const MAX_AGE_OPTIONS: { value: number; label: string }[] = [
   { value: 0, label: 'all time' },
 ];
 const DEFAULT_MAX_AGE_DAYS = 90;
+/** Hide the 30-49 "weak fit" band by default — 50 is the floor for a genuine contender. */
+const DEFAULT_MIN_SCORE = 50;
 
 type Column = { label: string; key?: SortKey };
 const COLUMNS: Column[] = [
@@ -70,7 +72,7 @@ export function JobsList() {
 
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<JobStatus | ''>('');
-  const [minScore, setMinScore] = useState(0);
+  const [minScore, setMinScore] = useState(DEFAULT_MIN_SCORE);
   const [maxAgeDays, setMaxAgeDays] = useState(DEFAULT_MAX_AGE_DAYS);
   const [sort, setSort] = useState<SortKey>('posted');
   const [order, setOrder] = useState<SortOrder>('desc');
