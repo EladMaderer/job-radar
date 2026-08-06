@@ -711,3 +711,20 @@ language so it doubles as an interview script.
 - **Trade-off:** Best-effort, unlike job alerts. There's no pending flag for a notice, so a failed
   send is logged and dropped rather than retried — the status change itself is already committed and
   visible on the dashboard, so the worst case is a missed ping, not lost data.
+
+## Drop remote-anywhere jobs — no location bonus wasn't enough
+
+- **Decision:** `classifyLocation`'s base filter (`keep`) no longer treats "remote" as a keep reason
+  on its own. A job is kept only if it's actually in Israel (city/country signal) or has no location
+  text at all (unknown, better to review than silently drop). Remote-in-Israel jobs are unaffected —
+  `inIsrael` catches those independently of the remote flag. `rescore` now runs this same check
+  BEFORE the LLM call and drops failures for free.
+- **Why:** The old rule kept remote-anywhere/EMEA/global roles with no Israel tie on the theory they
+  "are often open to Israel" — denying only the location bonus, not visibility. In practice that just
+  filled the dashboard with foreign remote postings. Crucially, `processJobs`'s location filter runs
+  ONCE at insert time, so already-stored foreign rows (Jobgether · Brazil, · UK) survived every
+  scoring-only rescore forever — the location re-check in `rescore` is what actually retires them.
+- **Trade-off:** Only `location` TEXT is persisted (no ATS remote flag / countryCode), so the
+  retroactive re-check can only match city/country names. A stored row whose sole Israel signal was
+  a country code would now be dropped. Accepted: rare (boards almost always name a city), and the
+  alternative is keeping all the foreign-remote noise this is meant to remove.

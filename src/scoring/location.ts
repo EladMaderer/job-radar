@@ -20,9 +20,12 @@ const contains = (haystack: string, needles: readonly string[]): boolean =>
 /**
  * Base filter + location signal in one pass.
  *
- * Keep a job if it is in Israel, or remote in any form (remote-anywhere / EMEA / global roles
- * are often open to Israel — kept, but they earn no location bonus). Drop only clearly-foreign
- * roles: pinned to a non-Israel city with no remote signal.
+ * Keep a job ONLY if it is in Israel (or has no location text at all — better to review than
+ * silently drop an unknown). Remote-anywhere / EMEA / global roles with no Israel tie are DROPPED,
+ * not just denied the location bonus — remote-only jobs are not wanted regardless of scope.
+ * `isRemote` on a job that IS in Israel is still fine (and still earns the bonus elsewhere) —
+ * `inIsrael` alone decides `keep`, so a real remote-in-Israel role stays, it just isn't kept
+ * *because* it's remote.
  */
 export function classifyLocation(job: Job): LocationClassification {
   const text = (job.location ?? '').toLowerCase();
@@ -32,7 +35,7 @@ export function classifyLocation(job: Job): LocationClassification {
 
   // No location text at all: keep it (better to review than silently drop) but treat as unknown.
   const hasLocationText = text.trim().length > 0;
-  const keep = inIsrael || isRemote || !hasLocationText;
+  const keep = inIsrael || !hasLocationText;
 
   return { inCommuteZone, inIsrael, isRemote, keep };
 }
