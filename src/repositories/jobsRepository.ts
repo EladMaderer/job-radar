@@ -198,8 +198,13 @@ export interface RescoreRow {
 }
 
 /**
- * Relevant rows that still have a description, so they can be re-scored. Irrelevant rows are stored
- * lean (description=null) and can't be re-scored, but they're already hidden so it doesn't matter.
+ * Every relevant row, whether or not it still has a description.
+ *
+ * The description filter used to live here, which silently excluded description-less rows from
+ * rescore entirely — so the LOCATION re-check could never reach them and foreign postings
+ * (Jobgether · Brazil / US / India) survived every run. Location needs only `location`, not the
+ * description, so the filter moved to the caller: rescore location-checks everything and only skips
+ * the LLM call for rows with no description to judge.
  */
 export async function listRelevantForRescore(limit?: number): Promise<RescoreRow[]> {
   const { rows } = await pool.query<{
@@ -220,7 +225,7 @@ export async function listRelevantForRescore(limit?: number): Promise<RescoreRow
     `SELECT id, source, external_id, company, title, location, url, description, posted_at,
             seniority, technology_slugs, fit_score, relevant
        FROM jobs
-      WHERE relevant = true AND description IS NOT NULL
+      WHERE relevant = true
       ORDER BY id${limit ? ` LIMIT ${Number(limit)}` : ''}`,
   );
   return rows.map((r) => ({

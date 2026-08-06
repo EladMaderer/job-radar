@@ -55,6 +55,7 @@ async function main(): Promise<void> {
   let changed = 0;
   let dropped = 0;
   let droppedByLocation = 0;
+  let skippedNoDescription = 0;
   const samples: string[] = [];
 
   await mapWithConcurrency(rows, SCORE_CONCURRENCY, async (row) => {
@@ -64,10 +65,16 @@ async function main(): Promise<void> {
 
     if (!classifyLocation(row.job).keep) {
       // Foreign / remote-anywhere with no Israel tie — drop for free, skip the LLM call entirely.
+      // Runs on EVERY relevant row, including description-less ones the LLM pass below can't judge.
       score = 0;
       why = LOCATION_DROP_WHY;
       relevant = false;
       droppedByLocation += 1;
+    } else if (!row.job.description) {
+      // Nothing for the LLM to judge — scoring an empty description yields garbage. Leave the row
+      // exactly as-is; the location check above already had its say.
+      skippedNoDescription += 1;
+      return;
     } else {
       ({ score, why, relevant } = await scorer.score(row.job));
     }
@@ -85,9 +92,10 @@ async function main(): Promise<void> {
   });
 
   console.log(
-    `[rescore] done${dryRun ? ' (DRY RUN — nothing written)' : ''}: ${rows.length} rescored, ` +
+    `[rescore] done${dryRun ? ' (DRY RUN — nothing written)' : ''}: ${rows.length} examined, ` +
       `${changed} changed, ${dropped} now irrelevant (${droppedByLocation} by location, ` +
-      `${dropped - droppedByLocation} by scorer) — hidden from dashboard.`,
+      `${dropped - droppedByLocation} by scorer) — hidden from dashboard. ` +
+      `${skippedNoDescription} left as-is (no description to re-judge).`,
   );
   console.log(
     `[rescore] scorer: ${scorerStats.llmScored} scored by LLM, ` +
