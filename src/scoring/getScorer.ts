@@ -5,13 +5,27 @@ import { hasFrontendSignal } from './prefilter.js';
 import type { Job } from '../ats/types.js';
 import type { Scorer } from './types.js';
 
-/** Wrap a primary scorer so any failure on a single job falls back to the keyword scorer. */
+export const scorerStats = {
+  llmScored: 0,
+  keywordFallbacks: 0,
+  degraded: false,
+};
+
+export function resetScorerStats(): void {
+  scorerStats.llmScored = 0;
+  scorerStats.keywordFallbacks = 0;
+  scorerStats.degraded = false;
+}
+
 function withKeywordFallback(primary: Scorer): Scorer {
   return {
     async score(job: Job) {
       try {
-        return await primary.score(job);
+        const result = await primary.score(job);
+        scorerStats.llmScored += 1;
+        return result;
       } catch (err) {
+        scorerStats.keywordFallbacks += 1;
         console.warn(
           `[score] LLM scorer failed for "${job.title}", using keyword: ${(err as Error).message}`,
         );
@@ -21,17 +35,6 @@ function withKeywordFallback(primary: Scorer): Scorer {
   };
 }
 
-/**
- * Hard per-run ceiling on LLM calls — a credit circuit-breaker. `getScorer()` is called once per
- * run, so this counter lives for exactly one cycle and resets on the next. Past the cap, jobs fall
- * back to the free keyword scorer (never unbounded spend), logged once. A normal re-baseline stays
- * far under the cap; hitting it signals something abnormal (a board or discovery explosion), and the
- * user can raise MAX_LLM_SCORES_PER_RUN and re-baseline if the volume was legitimate.
- *
- * Trade-off: overflow jobs get a keyword score (relevant=true) so they may show as noise, and dedup
- * means they won't be re-scored later — acceptable, since the cap only trips in a runaway the user
- * is meant to notice and act on, not in normal operation.
- */
 function withCallBudget(primary: Scorer, maxCalls: number): Scorer {
   let used = 0;
   let warned = false;
@@ -45,6 +48,7 @@ function withCallBudget(primary: Scorer, maxCalls: number): Scorer {
               'keyword scorer this run. Raise MAX_LLM_SCORES_PER_RUN and re-baseline if intended.',
           );
         }
+        scorerStats.keywordFallbacks += 1;
         return keywordScorer.score(job);
       }
       used += 1;
@@ -53,11 +57,6 @@ function withCallBudget(primary: Scorer, maxCalls: number): Scorer {
   };
 }
 
-/**
- * Drop jobs with no frontend signal for free (no LLM call). Since React/React Native is required,
- * a role with zero frontend signal is never a fit — this saves an API call per obvious non-match,
- * which is most of the board. Real frontend roles still reach `primary` for the nuanced judgment.
- */
 function withFrontendPrefilter(primary: Scorer): Scorer {
   return {
     async score(job: Job) {
@@ -73,18 +72,12 @@ function withFrontendPrefilter(primary: Scorer): Scorer {
   };
 }
 
-/**
- * Pick the scorer from config. The keyword scorer is the DEFAULT — the LLM scorer costs real money
- * (one Anthropic call per new job; a baseline run is hundreds of calls), so it must be explicit
- * opt-in via SCORER=llm, never triggered merely by an API key being present.
- * - SCORER=keyword (default) -> keyword only (free, no API).
- * - SCORER=llm               -> LLM (requires ANTHROPIC_API_KEY), frontend pre-filter + keyword fallback.
- */
 export function getScorer(): Scorer {
   const { SCORER, ANTHROPIC_API_KEY } = config;
 
   if (SCORER === 'llm') {
     if (!ANTHROPIC_API_KEY) {
+      scorerStats.degraded = true;
       console.error(
         '::error::[score] SCORER=llm but ANTHROPIC_API_KEY is unset — silently falling back to the ' +
           'keyword scorer, which NEVER drops a role. The unfiltered TheirStack query then stores ' +
@@ -96,8 +89,6 @@ export function getScorer(): Scorer {
       `[score] using LLM scorer (Claude Haiku 4.5): frontend pre-filter → budget ` +
         `(${config.MAX_LLM_SCORES_PER_RUN}/run) → keyword fallback.`,
     );
-    // Layered outside-in: pre-filter drops obvious non-frontend roles for FREE (no budget spent),
-    // then the per-run call budget caps spend, then per-call keyword fallback handles LLM errors.
     return withFrontendPrefilter(
       withCallBudget(
         withKeywordFallback(createLlmScorer(ANTHROPIC_API_KEY)),

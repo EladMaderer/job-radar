@@ -3,7 +3,7 @@ import { SCORE_CONCURRENCY } from './constants/scoring.js';
 import { pool } from './db/pool.js';
 import { mapWithConcurrency } from './lib/concurrency.js';
 import { listRelevantForRescore, updateScore } from './repositories/jobsRepository.js';
-import { getScorer } from './scoring/getScorer.js';
+import { getScorer, resetScorerStats, scorerStats } from './scoring/getScorer.js';
 import { classifyLocation } from './scoring/location.js';
 
 const LOCATION_DROP_WHY = 'not in Israel / remote-anywhere with no Israel tie (location re-check)';
@@ -35,6 +35,19 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
+  // Same disaster, different cause: SCORER=llm but no API key makes getScorer() SILENTLY return the
+  // keyword scorer, which marks everything relevant=true. The old guard checked only SCORER, so a
+  // keyless run "succeeded" while overwriting every LLM judgment with un-droppable keyword scores.
+  if (!config.ANTHROPIC_API_KEY) {
+    console.error(
+      '::error::[rescore] SCORER=llm but ANTHROPIC_API_KEY is unset — getScorer() would silently ' +
+        'fall back to the keyword scorer, which NEVER drops a role, overwriting every stored LLM ' +
+        'judgment with un-droppable keyword scores. Add the ANTHROPIC_API_KEY secret. Aborting.',
+    );
+    process.exit(1);
+  }
+
+  resetScorerStats();
   const scorer = getScorer();
   const rows = await listRelevantForRescore(limit);
   console.log(`[rescore] re-scoring ${rows.length} relevant rows${dryRun ? ' (DRY RUN)' : ''}...`);
@@ -76,6 +89,20 @@ async function main(): Promise<void> {
       `${changed} changed, ${dropped} now irrelevant (${droppedByLocation} by location, ` +
       `${dropped - droppedByLocation} by scorer) — hidden from dashboard.`,
   );
+  console.log(
+    `[rescore] scorer: ${scorerStats.llmScored} scored by LLM, ` +
+      `${scorerStats.keywordFallbacks} fell back to keyword.`,
+  );
+  if (scorerStats.keywordFallbacks > 0) {
+    // A keyword-scored row is marked relevant=true unconditionally, so these rows are now noise the
+    // rubric can never drop — the run must not look clean.
+    console.error(
+      `::error::[rescore] ${scorerStats.keywordFallbacks} row(s) fell back to the KEYWORD scorer ` +
+        '(LLM call failed, or MAX_LLM_SCORES_PER_RUN exhausted). Keyword rows are always marked ' +
+        'relevant=true, so they cannot be dropped by the rubric and will show as dashboard noise. ' +
+        'Check the warnings above for the cause, then re-run.',
+    );
+  }
   if (samples.length > 0) {
     console.log('[rescore] sample changes (old → new):');
     samples.forEach((s) => console.log(s));

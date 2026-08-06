@@ -14,6 +14,7 @@ import {
   existsSimilarJob,
   findExistingExternalIds,
   findPendingAlerts,
+  hideDuplicateJobs,
   insertJob,
   latestFirstSeen,
   markAlerted,
@@ -48,6 +49,7 @@ export interface PollSummary {
   updated: number; // already-seen rows refreshed
   dropped: number; // new jobs judged irrelevant — stored lean as dedup memory, hidden from dashboard
   suppressed: number; // cross-source duplicates — stored but never alerted
+  deduped: number; // same-posting duplicates hidden this cycle (same title+description, diff company)
   alerted: number; // alerts actually sent (and marked) this cycle
   failedAlerts: number; // sends that failed — stay pending, retried next cycle
   halted: number; // jobs newly detected as no longer accepting applications (status -> halted)
@@ -64,6 +66,7 @@ function emptySummary(): PollSummary {
     updated: 0,
     dropped: 0,
     suppressed: 0,
+    deduped: 0,
     alerted: 0,
     failedAlerts: 0,
     halted: 0,
@@ -173,6 +176,9 @@ export async function runPollCycle(scorer: Scorer = getScorer()): Promise<PollSu
   // Pass 2: one shared downstream over everything (dedup once per source, parallel updates + scoring).
   await processJobs(allJobs, scorer, summary, knownSources);
 
+  // Collapse same-posting duplicates (same title+description, different company) before alerting.
+  summary.deduped = await hideDuplicateJobs();
+
   await sendPendingAlerts(summary);
   logSummary('poll', summary);
   return summary;
@@ -230,6 +236,9 @@ export async function runTheirStackCycle(scorer: Scorer = getScorer()): Promise<
   await processJobs(jobs, scorer, summary, knownSources, (job) =>
     existsSimilarJob(job.company, job.title, THEIRSTACK_SOURCE),
   );
+
+  // Collapse same-posting duplicates (same title+description, different company) before alerting.
+  summary.deduped = await hideDuplicateJobs();
 
   // Step 2: flag postings that stopped accepting applications, and un-flag any accepting again.
   // Uses whatever credits remain this period after the fetch above (each state change = 1 credit).
@@ -402,8 +411,9 @@ function logSummary(tag: string, s: PollSummary): void {
     s.baselineSeeded.length > 0 ? ` [BASELINE SEED (${s.baselineSeeded.join(', ')}) — silent]` : '';
   console.log(
     `[${tag}] fetched=${s.fetched} candidates=${s.candidates} inserted=${s.inserted} ` +
-      `updated=${s.updated} dropped=${s.dropped} suppressed=${s.suppressed} halted=${s.halted} ` +
-      `reopened=${s.reopenedJobs.length} alerted=${s.alerted} failedAlerts=${s.failedAlerts}${seeded}`,
+      `updated=${s.updated} dropped=${s.dropped} suppressed=${s.suppressed} deduped=${s.deduped} ` +
+      `halted=${s.halted} reopened=${s.reopenedJobs.length} alerted=${s.alerted} ` +
+      `failedAlerts=${s.failedAlerts}${seeded}`,
   );
   if (s.failedCompanies.length > 0) {
     console.warn(`[${tag}] failed boards: ${s.failedCompanies.join(', ')}`);

@@ -499,6 +499,35 @@ export async function updateJobFields(job: Job): Promise<void> {
   );
 }
 
+/**
+ * Hide duplicate postings: the same role stored more than once (typically reposted under different
+ * company display names). Within each content_hash group — same title + description, see migration
+ * 014 — keep the best row (highest score, then earliest seen) and flip the rest to relevant=false,
+ * reusing the mechanism that already keeps irrelevant rows off the dashboard.
+ *
+ * Idempotent and cheap: hidden rows drop out of the `relevant = true` set, so a steady state updates
+ * nothing; only a newly-arrived duplicate is flipped. Runs once per cycle, after inserts and before
+ * alerts, so a duplicate never alerts. Returns the number newly hidden this run.
+ */
+export async function hideDuplicateJobs(): Promise<number> {
+  const { rowCount } = await pool.query(
+    `WITH ranked AS (
+       SELECT id, row_number() OVER (
+         PARTITION BY content_hash
+         ORDER BY fit_score DESC NULLS LAST, first_seen_at ASC, id ASC
+       ) AS rn
+       FROM jobs
+       WHERE relevant = true AND content_hash IS NOT NULL
+     )
+     UPDATE jobs j
+        SET relevant = false,
+            why = 'duplicate posting (same title + description) — hidden by dedup'
+       FROM ranked r
+      WHERE j.id = r.id AND r.rn > 1`,
+  );
+  return rowCount ?? 0;
+}
+
 // --- Closure reconciliation (Step 2) --------------------------------------------------------
 
 /** A stored job reduced to what the reconciliation needs: its id and URL (URL routes the check —

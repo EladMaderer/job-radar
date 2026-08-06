@@ -712,19 +712,38 @@ language so it doubles as an interview script.
   send is logged and dropped rather than retried — the status change itself is already committed and
   visible on the dashboard, so the worst case is a missed ping, not lost data.
 
+## Collapsing duplicate postings (same role, different company name)
+
+- **Decision:** Dedup on a `content_hash` = md5 of normalized(title) + first 500 normalized chars of
+  the description (migration 014, a STORED generated column; NULL when there's no description). Within
+  a hash group the poller keeps the best row (highest score, then earliest seen) and flips the rest to
+  `relevant=false`, reusing the existing "irrelevant rows are hidden" path. `hideDuplicateJobs()` runs
+  every cycle after inserts and before alerts, so a duplicate is hidden before it can alert. Existing
+  duplicates are collapsed once by the migration's backfill.
+- **Why:** The same role gets reposted under different company display names (NVIDIA via several
+  LinkedIn legal entities: "NVIDIA AI", "NVIDIA Development France SAS", "NVIDIA"). Storage dedup is
+  `(source, external_id)` and `existsSimilarJob` matches only ACROSS sources AND requires the company
+  to match — so same-source variants where the company is exactly what differs slip through. Title +
+  description is the company-independent signal. A generated column keeps the normalization in ONE
+  place (SQL), auto-fills every existing and future row, and needs no change to insertJob.
+- **Trade-off:** Duplicates get scored before being hidden (a couple of extra Haiku calls per repost,
+  negligible). The 500-char prefix means two genuinely different roles that share a title AND the same
+  first 500 description chars would collapse — vanishingly rare for real postings. Which variant
+  survives is score/recency order, not "nicest company name", so occasionally the surviving row shows
+  a legal-entity name rather than the clean brand.
+
 ## Drop remote-anywhere jobs — no location bonus wasn't enough
 
 - **Decision:** `classifyLocation`'s base filter (`keep`) no longer treats "remote" as a keep reason
   on its own. A job is kept only if it's actually in Israel (city/country signal) or has no location
   text at all (unknown, better to review than silently drop). Remote-in-Israel jobs are unaffected —
-  `inIsrael` catches those independently of the remote flag. `rescore` now runs this same check
-  BEFORE the LLM call and drops failures for free.
+  `inIsrael` catches those independently of the remote flag, so they're kept and still earn the
+  existing "remote in Israel" scoring bonus.
 - **Why:** The old rule kept remote-anywhere/EMEA/global roles with no Israel tie on the theory they
   "are often open to Israel" — denying only the location bonus, not visibility. In practice that just
-  filled the dashboard with foreign remote postings. Crucially, `processJobs`'s location filter runs
-  ONCE at insert time, so already-stored foreign rows (Jobgether · Brazil, · UK) survived every
-  scoring-only rescore forever — the location re-check in `rescore` is what actually retires them.
-- **Trade-off:** Only `location` TEXT is persisted (no ATS remote flag / countryCode), so the
-  retroactive re-check can only match city/country names. A stored row whose sole Israel signal was
-  a country code would now be dropped. Accepted: rare (boards almost always name a city), and the
-  alternative is keeping all the foreign-remote noise this is meant to remove.
+  filled the dashboard with foreign remote postings the candidate has no interest in; explicitly not
+  wanted regardless of scope.
+- **Trade-off:** A real Israel-based remote role whose location text never mentions a city/country
+  (just "Remote", no countryCode) would now be dropped — there's nothing left to key `inIsrael` off
+  of. Accepted: rare in practice (Israeli boards almost always name a city), and the alternative
+  (keeping all remote-anywhere noise to avoid that edge case) is the exact problem being fixed.
