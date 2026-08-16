@@ -1,12 +1,15 @@
 /**
- * TheirStack query constants. Every job RETURNED costs 1 API credit. On the PAID tier (1,500
- * credits/month) the filters are tuned for RECALL, not budget: a broad React/frontend title set,
- * no seniority pre-filter (the LLM scorer judges seniority far better than TheirStack's tags), and
- * only our own registry companies excluded server-side (the ATS poller covers them free).
+ * TheirStack query constants. Every job RETURNED costs 1 API credit.
  *
- * Measured (blurred probes, 2026-07): this set with no seniority filter ≈ 334 jobs/month — ~22% of
- * the 1,500 budget. Deliberately still NOT bare "Software Engineer" — kept React/frontend-focused
- * so the dashboard isn't flooded with LLM-rejected noise.
+ * ⚠️ NOW ON THE FREE TIER (200 credits/month) — but this title set was tuned for RECALL on the paid
+ * tier: broad React/frontend titles, no seniority pre-filter (the LLM scorer judges seniority far
+ * better than TheirStack's tags), only registry companies excluded server-side.
+ *
+ * Measured (blurred probes, 2026-07): ≈ 334 jobs/month — comfortably 22% of the old 1,500 budget,
+ * but ~167% of the free tier's 200. Expect the credit guard to halt runs partway through a period
+ * (it stops cleanly and warns; it never overspends). To fit inside 200, trim THEIRSTACK_JOB_TITLES
+ * to the highest-signal entries — React Native / React / Frontend — and drop the generic catch-alls
+ * ("Web Developer", "Mobile Developer", "Fullstack…"), which pull the most volume per unit of fit.
  */
 export const THEIRSTACK_JOB_TITLES = [
   'Frontend Engineer',

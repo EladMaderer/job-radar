@@ -5,14 +5,14 @@ name: theirstack
 # is deliberately sparse. The 30-min ATS poll workflow is separate and unaffected.
 on:
   schedule:
-    # Hourly at :36 Israel-local Sun–Thu, anchored to summer (IDT = UTC+3); GitHub cron is UTC-only
-    # and can't follow DST, so in winter (IST = UTC+2) these fire ~1h earlier Israel time — fine.
-    # Minute :36 (not :00): top-of-the-hour cron slots are GitHub's most contended and scheduled
-    # runs there are frequently dropped; an odd offset is much more reliable. Hourly also means a
-    # dropped slot costs an hour, not four. Cadence itself is nearly free — the discovered_at
-    # watermark means each job is fetched (and billed) about once no matter how often we run.
-    - cron: '36 5-15 * * 0-4' # Sun–Thu, 08:36–18:36 Israel (hourly, 11 runs)
-    - cron: '36 5,7,9 * * 5' # Fri, 08:36–12:36 Israel (every 2h; Saturday: no run)
+    # Once daily on the FREE tier (200 credits/month) — 11:00 UTC = 14:00 Israel in summer
+    # (IDT = UTC+3). GitHub cron is UTC-only and can't follow DST, so in winter (IST = UTC+2) this
+    # fires at 13:00 Israel. Cadence barely affects spend (the discovered_at watermark bills each
+    # job about once however often we run) — it's the free tier's monthly cap that forces the pace.
+    # NOTE: :00 is GitHub's most contended cron slot and scheduled runs there are dropped most
+    # often. With only ONE run a day a dropped slot costs a whole day, so if TheirStack starts
+    # going missing, move this to an odd minute (e.g. '7 11 * * 0-5').
+    - cron: '0 11 * * 0-5' # Sun–Fri, 14:00 Israel (once daily; Saturday: no run)
   workflow_dispatch: {} # manual trigger for testing / a fresh backfill
 
 concurrency:
