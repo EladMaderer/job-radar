@@ -35,6 +35,11 @@
     "slug": "nice"
   },
   {
+    "name": "Taboola",
+    "ats": "greenhouse",
+    "slug": "taboola"
+  },
+  {
     "name": "Wiz, Inc.",
     "ats": "greenhouse",
     "slug": "wizinc"
@@ -50,9 +55,9 @@
     "slug": "connecteam"
   },
   {
-    "name": "Taboola",
+    "name": "Payoneer",
     "ats": "greenhouse",
-    "slug": "taboola"
+    "slug": "payoneer"
   },
   {
     "name": "AppsFlyer",
@@ -60,24 +65,14 @@
     "slug": "appsflyer"
   },
   {
-    "name": "Payoneer",
-    "ats": "greenhouse",
-    "slug": "payoneer"
+    "name": "Parallelwireless",
+    "ats": "lever",
+    "slug": "parallelwireless"
   },
   {
     "name": "Gong.io",
     "ats": "greenhouse",
     "slug": "gongio"
-  },
-  {
-    "name": "Speechify",
-    "ats": "greenhouse",
-    "slug": "speechify"
-  },
-  {
-    "name": "Axonius",
-    "ats": "greenhouse",
-    "slug": "axonius"
   },
   {
     "name": "Via",
@@ -90,9 +85,9 @@
     "slug": "sentinellabs"
   },
   {
-    "name": "Transmit Security",
+    "name": "Fireblocks",
     "ats": "greenhouse",
-    "slug": "transmitsecurity"
+    "slug": "fireblocks"
   },
   {
     "name": "Forter",
@@ -100,9 +95,24 @@
     "slug": "forter"
   },
   {
-    "name": "Walkme",
-    "ats": "lever",
-    "slug": "walkme"
+    "name": "Next Insurance",
+    "ats": "greenhouse",
+    "slug": "nextinsurance66"
+  },
+  {
+    "name": "Pagaya Israel",
+    "ats": "greenhouse",
+    "slug": "pagayais"
+  },
+  {
+    "name": "Speechify",
+    "ats": "greenhouse",
+    "slug": "speechify"
+  },
+  {
+    "name": "Transmit Security",
+    "ats": "greenhouse",
+    "slug": "transmitsecurity"
   },
   {
     "name": "Mixtiles",
@@ -110,14 +120,19 @@
     "slug": "mixtiles"
   },
   {
-    "name": "Next Insurance",
+    "name": "Wolt - English",
     "ats": "greenhouse",
-    "slug": "nextinsurance66"
+    "slug": "wolt"
   },
   {
-    "name": "Fireblocks",
+    "name": "Axonius",
     "ats": "greenhouse",
-    "slug": "fireblocks"
+    "slug": "axonius"
+  },
+  {
+    "name": "GitLab",
+    "ats": "greenhouse",
+    "slug": "gitlab"
   },
   {
     "name": "Navan",
@@ -130,29 +145,14 @@
     "slug": "unframe"
   },
   {
-    "name": "Parallelwireless",
-    "ats": "lever",
-    "slug": "parallelwireless"
-  },
-  {
-    "name": "Pagaya Israel",
+    "name": "DoiT",
     "ats": "greenhouse",
-    "slug": "pagayais"
+    "slug": "doitintl"
   },
   {
-    "name": "Wolt - English",
+    "name": "Eleos Health",
     "ats": "greenhouse",
-    "slug": "wolt"
-  },
-  {
-    "name": "Cloudinary",
-    "ats": "lever",
-    "slug": "cloudinary"
-  },
-  {
-    "name": "Armis Security",
-    "ats": "greenhouse",
-    "slug": "armissecurity"
+    "slug": "eleoshealth"
   },
   {
     "name": "MongoDB",
@@ -165,19 +165,29 @@
     "slug": "tenableinc"
   },
   {
-    "name": "DoiT",
+    "name": "Torq",
     "ats": "greenhouse",
-    "slug": "doitintl"
+    "slug": "torq"
   },
   {
-    "name": "Eleos Health",
-    "ats": "greenhouse",
-    "slug": "eleoshealth"
+    "name": "Walkme",
+    "ats": "lever",
+    "slug": "walkme"
   },
   {
-    "name": "GitLab",
+    "name": "WorldQuant",
     "ats": "greenhouse",
-    "slug": "gitlab"
+    "slug": "worldquant"
+  },
+  {
+    "name": "Cloudinary",
+    "ats": "lever",
+    "slug": "cloudinary"
+  },
+  {
+    "name": "Datarails",
+    "ats": "greenhouse",
+    "slug": "datarails"
   },
   {
     "name": "Figma",
@@ -205,24 +215,9 @@
     "slug": "quanthealth"
   },
   {
-    "name": "Ashley Digital",
+    "name": "Wayve",
     "ats": "greenhouse",
-    "slug": "residenthome"
-  },
-  {
-    "name": "Sweet Security",
-    "ats": "greenhouse",
-    "slug": "sweetsecurity"
-  },
-  {
-    "name": "Torq",
-    "ats": "greenhouse",
-    "slug": "torq"
-  },
-  {
-    "name": "WorldQuant",
-    "ats": "greenhouse",
-    "slug": "worldquant"
+    "slug": "wayve"
   },
   {
     "name": "Apiiro",
@@ -230,9 +225,14 @@
     "slug": "apiiro"
   },
   {
-    "name": "Augury",
+    "name": "Armis Security",
     "ats": "greenhouse",
-    "slug": "augury"
+    "slug": "armissecurity"
+  },
+  {
+    "name": "AutoDS",
+    "ats": "greenhouse",
+    "slug": "autods"
   },
   {
     "name": "Beamup",
@@ -245,11 +245,6 @@
     "slug": "beyondtrust"
   },
   {
-    "name": "ClickHouse",
-    "ats": "greenhouse",
-    "slug": "clickhouse"
-  },
-  {
     "name": "Cylus Cybersecurity",
     "ats": "greenhouse",
     "slug": "cyluscybersecurity"
@@ -258,16 +253,6 @@
     "name": "Cymulate",
     "ats": "greenhouse",
     "slug": "cymulate"
-  },
-  {
-    "name": "Datadog",
-    "ats": "greenhouse",
-    "slug": "datadog"
-  },
-  {
-    "name": "Datarails",
-    "ats": "greenhouse",
-    "slug": "datarails"
   },
   {
     "name": "DRW",
@@ -290,6 +275,16 @@
     "slug": "optimove"
   },
   {
+    "name": "Partnerize",
+    "ats": "greenhouse",
+    "slug": "partnerize"
+  },
+  {
+    "name": "Ashley Digital",
+    "ats": "greenhouse",
+    "slug": "residenthome"
+  },
+  {
     "name": "Riskified",
     "ats": "greenhouse",
     "slug": "riskified"
@@ -305,24 +300,19 @@
     "slug": "safebreach"
   },
   {
+    "name": "Salt Security",
+    "ats": "greenhouse",
+    "slug": "saltsecurity"
+  },
+  {
     "name": "Stripe",
     "ats": "greenhouse",
     "slug": "stripe"
   },
   {
-    "name": "Teads",
+    "name": "Sweet Security",
     "ats": "greenhouse",
-    "slug": "teads1"
-  },
-  {
-    "name": "Triple Whale",
-    "ats": "greenhouse",
-    "slug": "triplewhale"
-  },
-  {
-    "name": "Wayve",
-    "ats": "greenhouse",
-    "slug": "wayve"
+    "slug": "sweetsecurity"
   },
   {
     "name": "Yotpo",
@@ -350,24 +340,24 @@
     "slug": "tsmg"
   },
   {
+    "name": "Veeva",
+    "ats": "lever",
+    "slug": "veeva"
+  },
+  {
     "name": "Aligned",
     "ats": "greenhouse",
     "slug": "aligned"
   },
   {
-    "name": "AutoDS",
+    "name": "Augury",
     "ats": "greenhouse",
-    "slug": "autods"
+    "slug": "augury"
   },
   {
     "name": "Canopy",
     "ats": "greenhouse",
     "slug": "canopycare"
-  },
-  {
-    "name": "Electreon",
-    "ats": "greenhouse",
-    "slug": "electreon"
   },
   {
     "name": "Oasis Security",
@@ -385,14 +375,9 @@
     "slug": "placerlabs"
   },
   {
-    "name": "Salt Security",
+    "name": "Teads",
     "ats": "greenhouse",
-    "slug": "saltsecurity"
-  },
-  {
-    "name": "Soho House & Co.",
-    "ats": "greenhouse",
-    "slug": "sohohouseco"
+    "slug": "teads1"
   },
   {
     "name": "Tipalti",
@@ -405,11 +390,6 @@
     "slug": "tokensecurity"
   },
   {
-    "name": "Tomorrow.io",
-    "ats": "greenhouse",
-    "slug": "tomorrow"
-  },
-  {
     "name": "Houzz",
     "ats": "lever",
     "slug": "houzz"
@@ -420,11 +400,6 @@
     "slug": "lendbuzz"
   },
   {
-    "name": "Veeva",
-    "ats": "lever",
-    "slug": "veeva"
-  },
-  {
     "name": "Wmg",
     "ats": "lever",
     "slug": "wmg"
@@ -433,6 +408,11 @@
     "name": "Capitolis",
     "ats": "greenhouse",
     "slug": "capitolis"
+  },
+  {
+    "name": "Electreon",
+    "ats": "greenhouse",
+    "slug": "electreon"
   },
   {
     "name": "Midpoint Markets",
@@ -458,6 +438,11 @@
     "name": "Comet",
     "ats": "greenhouse",
     "slug": "comet"
+  },
+  {
+    "name": "Lightricks",
+    "ats": "greenhouse",
+    "slug": "lightricks"
   },
   {
     "name": "Lightrun",
