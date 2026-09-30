@@ -1,4 +1,5 @@
 import { config } from '../config/env.js';
+import { DROP_WHY } from '../constants/scoring.js';
 import { keywordScorer } from './keywordScorer.js';
 import { createLlmScorer } from './llmScorer.js';
 import { hasFrontendSignal } from './prefilter.js';
@@ -61,11 +62,7 @@ function withFrontendPrefilter(primary: Scorer): Scorer {
   return {
     async score(job: Job) {
       if (!hasFrontendSignal(job)) {
-        return {
-          relevant: false,
-          score: 0,
-          why: 'no frontend/React signal (pre-filter, no LLM call)',
-        };
+        return { relevant: false, score: 0, why: DROP_WHY.prefilter };
       }
       return primary.score(job);
     },
