@@ -1,5 +1,5 @@
 import type { Job } from '../ats/types.js';
-import { DROP_WHY } from '../constants/scoring.js';
+import { DROP_WHY, RELISTING_SOURCES } from '../constants/scoring.js';
 import { pool } from '../db/pool.js';
 import type { JobAlert, ReopenedJob } from '../notify/types.js';
 
@@ -264,12 +264,17 @@ export async function listRelevantForRescore(limit?: number): Promise<RescoreRow
  * keeps no description to re-score, and the poller never re-scores a known (source, external_id).
  * Excludes drops made without an LLM judgment (pre-filter, location, duplicate — the rubric can't
  * change those), closed roles, and any row the user has touched. `dryRun` counts without deleting.
+ *
+ * ATS sources ONLY: an ATS board re-lists every open job on each poll, so a forgotten row comes
+ * back. TheirStack is fetched incrementally (discovered_at watermark), so a forgotten TheirStack row
+ * is never returned again — it would simply be lost (this happened once: 208 rows, 2026-09-30).
  */
 export async function forgetRecentLlmDrops(withinDays: number, dryRun: boolean): Promise<number> {
   const where = `relevant = false AND description IS NULL AND status = 'new' AND closed_at IS NULL
       AND first_seen_at >= now() - make_interval(days => $1)
-      AND why IS NOT NULL AND why <> ALL($2::text[])`;
-  const params = [withinDays, Object.values(DROP_WHY)];
+      AND why IS NOT NULL AND why <> ALL($2::text[])
+      AND source = ANY($3::text[])`;
+  const params = [withinDays, Object.values(DROP_WHY), [...RELISTING_SOURCES]];
   if (dryRun) {
     const { rows } = await pool.query<{ n: string }>(
       `SELECT count(*) AS n FROM jobs WHERE ${where}`,
