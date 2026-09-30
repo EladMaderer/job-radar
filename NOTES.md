@@ -787,3 +787,9 @@ language so it doubles as an interview script.
 - **Trade-off:** Breaks the "rows are never deleted" invariant, in one documented place. Roles that
   are gone from the board by the next poll simply disappear instead of staying as dedup memory — no
   loss, since they can't reappear. Each revived role costs one Haiku call again.
+- **Correction (same day):** Revive is limited to ATS sources (Greenhouse, Lever, Comeet). The first
+  run also forgot 208 TheirStack drops — and TheirStack is fetched incrementally (only jobs
+  discovered after our newest row), so those were never re-fetched: lost, not revived. Lesson:
+  "re-fetched next poll" is true only for sources that re-list every open job. Chose to accept the
+  loss rather than restore from a Neon point-in-time branch — the roles were at most 30 days old
+  and TheirStack credits for a re-fetch weren't available.

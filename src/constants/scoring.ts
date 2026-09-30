@@ -1,3 +1,7 @@
+import { COMEET_SOURCE } from '../ats/comeet.js';
+import { GREENHOUSE_SOURCE } from '../ats/greenhouse.js';
+import { LEVER_SOURCE } from '../ats/lever.js';
+
 /**
  * Scoring weights and keyword sets, all in one place so tuning is a data edit, not a code change.
  *
@@ -36,6 +40,12 @@ export const DROP_WHY = {
  * next poll re-scores them under the current rubric. Older roles are likely filled.
  */
 export const REVIVE_DROPS_WITHIN_DAYS = 30;
+
+/**
+ * Sources that re-list EVERY open job on each poll, so a forgotten row is re-fetched as new. Only
+ * these may be revived — TheirStack is incremental and would never return a forgotten row.
+ */
+export const RELISTING_SOURCES = [GREENHOUSE_SOURCE, LEVER_SOURCE, COMEET_SOURCE] as const;
 
 export const SCORE_MIN = 0;
 export const SCORE_MAX = 100;
