@@ -2,6 +2,12 @@ import 'dotenv/config';
 import { z } from 'zod';
 
 /**
+ * Treat an empty value as unset so the schema default applies. An unset GitHub Actions secret or
+ * variable arrives as "" — and `z.coerce.number()` turns "" into 0, silently replacing a default.
+ */
+const emptyAsUnset = (v: unknown): unknown => (v === '' || v == null ? undefined : v);
+
+/**
  * Environment config, validated once at boot. Import `config` anywhere; if the
  * environment is invalid the process exits with a clear message before any work runs.
  */
@@ -10,7 +16,8 @@ const envSchema = z.object({
   TELEGRAM_CHAT_ID: z.string().min(1, 'required for Telegram alerts'),
   DATABASE_URL: z.string().url('must be a valid postgres connection string'),
   POLL_INTERVAL_MIN: z.coerce.number().int().positive().default(15),
-  SCORE_THRESHOLD: z.coerce.number().int().min(0).max(100).default(45),
+  // Alert only at or above this score. Unset in CI => the default (was silently 0 before emptyAsUnset).
+  SCORE_THRESHOLD: z.preprocess(emptyAsUnset, z.coerce.number().int().min(0).max(100).default(50)),
   // LLM scoring (Phase 3). Optional — without it the scorer falls back to keyword.
   ANTHROPIC_API_KEY: z.string().optional(),
   // Hard ceiling on LLM scoring calls per run — a money circuit-breaker. A normal re-baseline
@@ -18,12 +25,8 @@ const envSchema = z.object({
   // (logged) so a misbehaving board or a runaway discovery can never spend credits unbounded.
   MAX_LLM_SCORES_PER_RUN: z.coerce.number().int().positive().default(1500),
   // Scorer selection. Default is the free keyword scorer — the LLM scorer costs money and must be
-  // opted into explicitly with SCORER=llm. `preprocess` maps an empty value (e.g. an unset GitHub
-  // Actions variable, which arrives as "") to the default instead of a validation error.
-  SCORER: z.preprocess(
-    (v) => (v === '' || v == null ? undefined : v),
-    z.enum(['keyword', 'llm']).default('keyword'),
-  ),
+  // opted into explicitly with SCORER=llm. An empty value falls back to the default (see emptyAsUnset).
+  SCORER: z.preprocess(emptyAsUnset, z.enum(['keyword', 'llm']).default('keyword')),
   // 'telegram' (default) or 'console' — lets the whole pipeline run offline.
   NOTIFIER: z.enum(['telegram', 'console']).default('telegram'),
   // TheirStack (second, market-wide source). Key absent => poll:theirstack is a clear no-op.

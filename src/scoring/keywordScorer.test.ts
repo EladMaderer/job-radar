@@ -2,7 +2,6 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { Job } from '../ats/types.js';
 import {
-  AI_KEYWORDS,
   BACKEND_PRIMARY_KEYWORDS,
   BACKEND_SIGNAL_KEYWORDS,
   FRONTEND_KEYWORDS,
@@ -91,6 +90,31 @@ test('frontend role with "go live" / "go-to-market" / "REST API" is not penalize
   assert.ok(r.score >= 45, `a clean frontend role should score well, got ${r.score}`);
 });
 
+test('React Native role outranks an otherwise identical React web role', async () => {
+  const rn = await score({
+    title: 'Senior Mobile Engineer',
+    location: 'Tel Aviv, Israel',
+    description: 'Build our app in React Native and TypeScript.',
+  });
+  const web = await score({
+    title: 'Senior Frontend Engineer',
+    location: 'Tel Aviv, Israel',
+    description: 'Build our web app in React and TypeScript.',
+  });
+  assert.match(rn.why, /React Native/);
+  assert.ok(rn.score > web.score, `RN(${rn.score}) should beat React web(${web.score})`);
+});
+
+test('AI mentions add nothing to the score', async () => {
+  const base = { title: 'Senior Frontend Engineer', location: 'Tel Aviv, Israel' };
+  const plain = await score({ ...base, description: 'React and TypeScript.' });
+  const ai = await score({
+    ...base,
+    description: 'React and TypeScript for our AI / LLM product.',
+  });
+  assert.equal(ai.score, plain.score);
+});
+
 // --- Keyword-list integrity (guards the fixes above) ----------------------------------------
 
 test('the false-firing keywords are gone', () => {
@@ -108,7 +132,6 @@ test('every keyword matches itself (catches punctuation keywords that could neve
     BACKEND_SIGNAL_KEYWORDS,
     BACKEND_PRIMARY_KEYWORDS,
     SENIOR_KEYWORDS,
-    AI_KEYWORDS,
     NEGATIVE_KEYWORDS,
   ];
   for (const list of lists) {

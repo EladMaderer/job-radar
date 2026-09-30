@@ -1,12 +1,14 @@
 import { config } from './config/env.js';
-import { SCORE_CONCURRENCY } from './constants/scoring.js';
+import { DROP_WHY, REVIVE_DROPS_WITHIN_DAYS, SCORE_CONCURRENCY } from './constants/scoring.js';
 import { pool } from './db/pool.js';
 import { mapWithConcurrency } from './lib/concurrency.js';
-import { listRelevantForRescore, updateScore } from './repositories/jobsRepository.js';
+import {
+  forgetRecentLlmDrops,
+  listRelevantForRescore,
+  updateScore,
+} from './repositories/jobsRepository.js';
 import { getScorer, resetScorerStats, scorerStats } from './scoring/getScorer.js';
 import { classifyLocation } from './scoring/location.js';
-
-const LOCATION_DROP_WHY = 'not in Israel / remote-anywhere with no Israel tie (location re-check)';
 
 /**
  * One-off recalibration: re-check every currently-relevant job's LOCATION and (if it still passes)
@@ -19,6 +21,10 @@ const LOCATION_DROP_WHY = 'not in Israel / remote-anywhere with no Israel tie (l
  * (`processJobs`'s base location filter runs once, at insert time, not on existing rows).
  * Caveat: only `location` TEXT is persisted (no ATS remote flag / countryCode), so this can only
  * re-derive Israel-ness from city/country name matches, not from a country-code-only signal.
+ *
+ * Then REVIVES recent LLM drops: a dropped row keeps no description, so it can't be re-scored here —
+ * instead it's forgotten, and the next poll re-fetches it as a new job, scores it under the current
+ * rubric, and alerts if it now matches. See forgetRecentLlmDrops for what is excluded.
  *
  * Costs LLM credits (~one call per row that passes the location check), but NO TheirStack credits.
  * Knobs: RESCORE_DRY_RUN=1 (report only, no writes), RESCORE_LIMIT=N (process only N rows).
@@ -47,6 +53,13 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
+  // Revive BEFORE re-scoring: rows this run drops must not be forgotten along with the old ones.
+  const revived = await forgetRecentLlmDrops(REVIVE_DROPS_WITHIN_DAYS, dryRun);
+  console.log(
+    `[rescore] revive: ${revived} LLM-dropped row(s) from the last ${REVIVE_DROPS_WITHIN_DAYS} days ` +
+      `${dryRun ? 'would be ' : ''}forgotten — the next poll re-scores them as new jobs.`,
+  );
+
   resetScorerStats();
   const scorer = getScorer();
   const rows = await listRelevantForRescore(limit);
@@ -67,7 +80,7 @@ async function main(): Promise<void> {
       // Foreign / remote-anywhere with no Israel tie — drop for free, skip the LLM call entirely.
       // Runs on EVERY relevant row, including description-less ones the LLM pass below can't judge.
       score = 0;
-      why = LOCATION_DROP_WHY;
+      why = DROP_WHY.location;
       relevant = false;
       droppedByLocation += 1;
     } else if (!row.job.description) {

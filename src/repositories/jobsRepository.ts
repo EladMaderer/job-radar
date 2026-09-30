@@ -1,4 +1,5 @@
 import type { Job } from '../ats/types.js';
+import { DROP_WHY } from '../constants/scoring.js';
 import { pool } from '../db/pool.js';
 import type { JobAlert, ReopenedJob } from '../notify/types.js';
 
@@ -7,7 +8,9 @@ import type { JobAlert, ReopenedJob } from '../notify/types.js';
  * functions are the only place rows are read or written.
  *
  * Invariants: inserts/updates NEVER touch `first_seen_at` or `status` after creation
- * (status is user-owned in the Phase 2 dashboard); rows are never deleted.
+ * (status is user-owned in the Phase 2 dashboard). Rows are never deleted, with one exception:
+ * `forgetRecentLlmDrops`, which rescore runs after a rubric change so wrongly-dropped roles get
+ * re-scored by the next poll.
  */
 
 /**
@@ -255,6 +258,29 @@ export async function listRelevantForRescore(limit?: number): Promise<RescoreRow
  * Overwrite a job's score/relevance (one-off recalibration only — the poller never re-scores).
  * If a row flips to irrelevant, drop its description to match the lean-storage invariant.
  */
+/**
+ * Forget recent rows the LLM scorer dropped, so the next poll sees them as NEW and re-scores them
+ * under the current rubric (alerting if they now match). Deleting is the only way: a dropped row
+ * keeps no description to re-score, and the poller never re-scores a known (source, external_id).
+ * Excludes drops made without an LLM judgment (pre-filter, location, duplicate — the rubric can't
+ * change those), closed roles, and any row the user has touched. `dryRun` counts without deleting.
+ */
+export async function forgetRecentLlmDrops(withinDays: number, dryRun: boolean): Promise<number> {
+  const where = `relevant = false AND description IS NULL AND status = 'new' AND closed_at IS NULL
+      AND first_seen_at >= now() - make_interval(days => $1)
+      AND why IS NOT NULL AND why <> ALL($2::text[])`;
+  const params = [withinDays, Object.values(DROP_WHY)];
+  if (dryRun) {
+    const { rows } = await pool.query<{ n: string }>(
+      `SELECT count(*) AS n FROM jobs WHERE ${where}`,
+      params,
+    );
+    return Number(rows[0]?.n ?? 0);
+  }
+  const { rowCount } = await pool.query(`DELETE FROM jobs WHERE ${where}`, params);
+  return rowCount ?? 0;
+}
+
 export async function updateScore(
   id: number,
   fitScore: number,
@@ -526,9 +552,10 @@ export async function hideDuplicateJobs(): Promise<number> {
      )
      UPDATE jobs j
         SET relevant = false,
-            why = 'duplicate posting (same title + description) — hidden by dedup'
+            why = $1
        FROM ranked r
       WHERE j.id = r.id AND r.rn > 1`,
+    [DROP_WHY.duplicate],
   );
   return rowCount ?? 0;
 }

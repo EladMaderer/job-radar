@@ -1,6 +1,5 @@
 import type { Job } from '../ats/types.js';
 import {
-  AI_KEYWORDS,
   BACKEND_PRIMARY_KEYWORDS,
   BACKEND_PRIMARY_SLUGS,
   BACKEND_SIGNAL_KEYWORDS,
@@ -42,9 +41,10 @@ const clamp = (n: number): number => Math.max(SCORE_MIN, Math.min(SCORE_MAX, n))
 
 /**
  * Keyword scorer v1. Scores title + description (title weighted higher) so signals that live in
- * the body — "AI", "senior", backend-language dominance — aren't missed by a generic title.
+ * the body — "senior", React Native, backend-language dominance — aren't missed by a generic title.
  *
- * Ranking intent: React+Node (FE-oriented full-stack) > pure React > backend-heavy "full stack".
+ * Ranking intent: React Native > React+Node (FE-oriented full-stack) > pure React > backend-heavy
+ * "full stack".
  */
 export const keywordScorer: Scorer = {
   score(job: Job): Promise<ScoreResult> {
@@ -65,14 +65,22 @@ function scoreSync(job: Job): ScoreResult {
   const slugBackendSignal = slugs.some((s) => BACKEND_SIGNAL_SLUGS.includes(s));
   const slugBackendPrimary = slugs.some((s) => BACKEND_PRIMARY_SLUGS.includes(s));
 
+  // React Native anywhere is unambiguous frontend signal — a "Mobile Engineer" title with RN in
+  // the body must earn the full frontend base, not the reduced description-only weight.
+  const isReactNative =
+    slugs.some((s) => REACT_NATIVE_SLUGS.includes(s)) ||
+    matchesAny(title, REACT_NATIVE_KEYWORDS) ||
+    matchesAny(description, REACT_NATIVE_KEYWORDS);
+
   // Frontend / full-stack base signal (text channel, with slug channel as title-grade evidence).
   const frontendWhere = locate(title, description, FRONTEND_KEYWORDS);
-  const frontendPts = slugFrontend ? WEIGHTS.frontend : weightFor(frontendWhere, WEIGHTS.frontend);
+  const frontendFull = slugFrontend || isReactNative;
+  const frontendPts = frontendFull ? WEIGHTS.frontend : weightFor(frontendWhere, WEIGHTS.frontend);
   if (frontendPts) {
     score += frontendPts;
     reasons.push(
-      slugFrontend
-        ? `frontend (tech tags) +${frontendPts}`
+      frontendFull
+        ? `frontend (${slugFrontend ? 'tech tags' : 'React Native'}) +${frontendPts}`
         : `frontend/full-stack (${frontendWhere}) +${frontendPts}`,
     );
   }
@@ -104,12 +112,10 @@ function scoreSync(job: Job): ScoreResult {
     }
   }
 
-  // AI / AI-tooling.
-  const aiWhere = locate(title, description, AI_KEYWORDS);
-  const aiPts = weightFor(aiWhere, WEIGHTS.ai);
-  if (aiPts) {
-    score += aiPts;
-    reasons.push(`AI (${aiWhere}) +${aiPts}`);
+  // React Native — the candidate's main skill, so an RN role outranks everything else.
+  if (isReactNative) {
+    score += WEIGHTS.reactNative;
+    reasons.push(`React Native +${WEIGHTS.reactNative}`);
   }
 
   // Location bonus: commute zone, or remote within Israel. Remote-anywhere earns nothing.
@@ -157,10 +163,6 @@ function scoreSync(job: Job): ScoreResult {
   // Team-lead / engineering-management ROLE penalty — the candidate is a hands-on senior IC.
   // WAIVED when React Native is present: an RN lead is the one lead role worth surfacing (mirrors
   // the EXCEPTION in the LLM scorer's prompt).
-  const isReactNative =
-    slugs.some((s) => REACT_NATIVE_SLUGS.includes(s)) ||
-    matchesAny(title, REACT_NATIVE_KEYWORDS) ||
-    matchesAny(description, REACT_NATIVE_KEYWORDS);
   if (!isReactNative) {
     const leadWhere = locate(title, description, LEAD_ROLE_KEYWORDS);
     const leadPts = weightFor(leadWhere, WEIGHTS.backendPrimaryPenalty);

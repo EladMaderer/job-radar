@@ -747,3 +747,43 @@ language so it doubles as an interview script.
   (just "Remote", no countryCode) would now be dropped — there's nothing left to key `inIsrael` off
   of. Accepted: rare in practice (Israeli boards almost always name a city), and the alternative
   (keeping all remote-anywhere noise to avoid that edge case) is the exact problem being fixed.
+
+## Scoring rubric v2 — React Native first, lenient on ordinary backend, no AI
+
+- **Decision:** Rewrote the LLM rubric around a base-minus-deductions score: React Native core = 100,
+  React web = 85, front-end-oriented full-stack = 80, then −5 to −10 per real negative (outside the
+  commute zone, unclear seniority, heavier backend asks, RN lead). The backend rule changed from
+  "required vs. nice-to-have" to "how strong is the ask": plain "experience with Node.js / Postgres /
+  SQL", even "3+ years", is kept; "meaningful / strong / deep" backend, 4–5+ years of backend, or a
+  required Python/Go/Java-class language is dropped. "When unsure, drop" became "when unsure, keep
+  and score lower". AI was removed from scoring entirely (prompt and keyword fallback).
+- **Why:** The old rule dropped every full-stack role that *listed* Node or SQL as a requirement —
+  which is nearly every Israeli full-stack posting — so the radar went almost silent. React Native
+  is the main skill and was only a vague "especially strong" note; now it's the explicit top band.
+- **Trade-off:** More alerts, and some will be borderline full-stack roles. Accepted: a weaker alert
+  costs a glance, a missed role costs the job. The strength test relies on the LLM reading wording
+  ("strong" vs. "experience with"), which is fuzzier than a keyword rule.
+
+## SCORE_THRESHOLD was silently 0 in CI
+
+- **Decision:** Treat an empty env value as unset (`emptyAsUnset`, shared with `SCORER`) and raise
+  the default threshold from 45 to 50.
+- **Why:** `SCORE_THRESHOLD` was never added as a GitHub secret, so Actions passed `""`, and
+  `z.coerce.number("")` is `0` — not a validation error, not the default. Every relevant role alerted
+  regardless of score. 50 fits the new bands: every real match starts at 80+ and only a pile of
+  deductions pushes one below.
+- **Trade-off:** Scores now actually gate alerts, so a badly calibrated LLM score could hide a role
+  (it's still stored and visible on the dashboard). Setting the secret explicitly would also work,
+  but the parse bug would stay waiting for the next unset number.
+
+## Rescore revives recent LLM drops by forgetting them
+
+- **Decision:** `npm run rescore` first deletes rows the LLM dropped in the last 30 days (not
+  pre-filter, location, or duplicate drops; not closed; not touched by me), so the next poll sees them
+  as new, re-scores them under the current rubric, and alerts if they now match.
+- **Why:** A dropped row stores no description (by design, to stay lean), so there's nothing to
+  re-score in place — and the poller never re-scores a known `(source, external_id)`. Forgetting the
+  row reuses the normal new-job path instead of building a second one.
+- **Trade-off:** Breaks the "rows are never deleted" invariant, in one documented place. Roles that
+  are gone from the board by the next poll simply disappear instead of staying as dedup memory — no
+  loss, since they can't reappear. Each revived role costs one Haiku call again.

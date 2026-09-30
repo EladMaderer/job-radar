@@ -11,7 +11,11 @@ tracks application status. It's both a daily tool and a portfolio project — bu
 - Front-end-oriented full-stack — I target frontend and FE-leaning full-stack roles.
 - Based in Kfar Saba, Israel. Commute preferred zone: Ra'anana, Hod HaSharon, Herzliya, Netanya,
   Petah Tikva, Rosh HaAyin, Ramat Gan, Tel Aviv. Remote/hybrid in Israel is a plus.
-- Boost: senior + AI-driven / AI-tooling product roles.
+- Priority: React Native (mobile) roles first, then React frontend and FE-oriented full-stack
+  (where most open roles are). AI is NOT a scoring factor.
+- Backend in a full-stack role is fine when it's ordinary ("experience with Node.js / Postgres /
+  SQL", even "3+ years"); drop only when it demands depth ("meaningful / strong / deep" backend,
+  5+ yrs backend, backend-primary language).
 - Downrank/skip: pure backend, Go/Java/Python-primary, DevOps/SRE/Data-eng, Angular-only,
   junior/intern/student, roles requiring relocation abroad.
 - Skip team-lead / engineering-manager roles (I'm a hands-on senior IC, not a lead) — UNLESS the

@@ -5,20 +5,37 @@
  * `go` won't hit "good", and `java` won't hit "javascript". Matching runs over the title (full
  * weight) and description (reduced weight).
  *
- * Net ranking goal: FE-oriented full-stack (React + Node) > pure React > backend-heavy "full stack".
+ * Net ranking goal: React Native (mobile) > FE-oriented full-stack (React + Node) ≈ pure React >
+ * backend-heavy "full stack". AI is deliberately NOT a signal.
  */
 
 export const WEIGHTS = {
   frontend: 40, // React / React Native / frontend / full-stack signal
   fullStackSweetSpot: 20, // frontend-specific AND backend signal => my ideal profile
+  reactNative: 20, // the candidate's main skill — pushes an RN role to the top of the ranking
   senior: 15,
-  ai: 15,
   commuteLocation: 15, // in my commute zone, or remote/hybrid in Israel
   backendPrimaryPenalty: -50, // backend-primary, DevOps/SRE/data-eng, Angular-only, junior/intern
 } as const;
 
 /** A description-only match counts for this fraction of the title weight (title is curated signal). */
 export const DESCRIPTION_WEIGHT_FACTOR = 0.5;
+
+/**
+ * `why` text for rows dropped WITHOUT an LLM judgment. The revive pass (rescore.ts) matches on
+ * these to tell them apart from LLM drops, so each string must live in exactly one place.
+ */
+export const DROP_WHY = {
+  prefilter: 'no frontend/React signal (pre-filter, no LLM call)',
+  location: 'not in Israel / remote-anywhere with no Israel tie (location re-check)',
+  duplicate: 'duplicate posting (same title + description) — hidden by dedup',
+} as const;
+
+/**
+ * Rescore's revive window: LLM-dropped rows first seen within this many days are forgotten so the
+ * next poll re-scores them under the current rubric. Older roles are likely filled.
+ */
+export const REVIVE_DROPS_WITHIN_DAYS = 30;
 
 export const SCORE_MIN = 0;
 export const SCORE_MAX = 100;
@@ -104,20 +121,6 @@ export const LEAD_ROLE_KEYWORDS = [
   'dev manager',
   'head of frontend',
   'head of engineering',
-];
-
-export const AI_KEYWORDS = [
-  'ai',
-  'a.i.',
-  'artificial intelligence',
-  'machine learning',
-  'ml',
-  'llm',
-  'genai',
-  'gen ai',
-  'generative',
-  'gpt',
-  'copilot',
 ];
 
 /**
