@@ -793,3 +793,17 @@ language so it doubles as an interview script.
   "re-fetched next poll" is true only for sources that re-list every open job. Chose to accept the
   loss rather than restore from a Neon point-in-time branch — the roles were at most 30 days old
   and TheirStack credits for a re-fetch weren't available.
+
+## Full-stack gate — only mobile or obviously front-end-oriented full-stack
+
+- **Decision:** The LLM rubric now has a full-stack gate. A full-stack role is kept only if it's
+  mobile full-stack (React Native + backend) or obviously front-end-oriented — said explicitly, or
+  the responsibilities are clearly mostly frontend. A generic or balanced "Full Stack Engineer" is
+  dropped, and for full-stack "unsure" means drop (pure React/RN frontend roles still lean keep).
+  The web FE-oriented full-stack base drops 80 → 75 so a React frontend role (85) ranks above it.
+- **Why:** Rubric v2 opened the backend rule up (ordinary Node/SQL asks are fine), which let in
+  generic full-stack roles that split the work evenly. Those aren't what I'm after — frontend and
+  React Native stay the priority; full-stack is only worth an alert when the frontend clearly leads.
+- **Trade-off:** Some real FE-leaning roles that don't spell out their focus will be dropped.
+  Accepted: the backend-strength rule from v2 still protects the ones that do pass the gate, and a
+  quieter, sharper channel beats one I learn to skim.
